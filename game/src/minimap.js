@@ -65,6 +65,14 @@ export function createMinimap(canvas, city) {
         ctx.arc(px, py, 3, 0, Math.PI * 2);
         ctx.fill();
       }
+      // Viko the rival, when he is racing Dara.
+      if (G.missions.rival) {
+        const [rx, ry] = toMap(G.missions.rival.car.pos.x, G.missions.rival.car.pos.z);
+        ctx.fillStyle = '#ff2e88';
+        ctx.beginPath();
+        ctx.arc(rx, ry, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
       // Player arrow, rotated by heading.
       const p = G.player.onFoot ? G.player.pos : G.player.car.pos;
       const heading = G.player.onFoot ? G.player.heading : G.player.car.heading;

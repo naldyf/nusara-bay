@@ -8,9 +8,11 @@ You are **Dara**, a getaway driver in **Nusara Bay** — an invented tropical
 archipelago city at dusk: glass downtown towers, a harbor of containers and
 cranes, a neon night market, a canal old town, and a beach of teal water.
 Dara owes **Madame Sari**, the harbor boss, **$6,400**, and the only way out
-is the wheel. Eight jobs stand between Dara and a clean slate; the first
-three are playable now, the rest are marked on the title screen as the next
-build.
+is the wheel. Eight jobs stand between Dara and a clean slate — a first fare,
+a courier run, a car steal, a harbor heist, a three-stop night-market run, a
+race against the rival driver Viko, a run from the debt collector's
+enforcers, and one last five-star getaway. Finish them all and the debt is
+paid.
 
 Built for the [make.fun gta6-01 bounty](https://make.fun/bounty/gta6-01): a
 complete open-world crime game that plays offline in a desktop browser from
@@ -39,7 +41,7 @@ there is nothing to install.
 | Space | Handbrake |
 | Shift | NOS boost |
 | F / click | Shoot the pistol (on foot) |
-| M | Radio on / off (BAY FM, synthesized) |
+| M | Radio: BAY FM → DUSK FM → off (both synthesized) |
 | Esc | Pause / resume |
 | Enter | Start from the title screen |
 
@@ -77,11 +79,18 @@ after dark, and real-time shadows.
   hard, or land three pistol hits, and it is disabled. Wanted decays when
   you stay out of sight; get caught on foot and you are busted.
 - **Jobs** — pickup → timed drive → drop-off, with a glowing marker in the
-  world, a blip on the minimap, and an objective line on the HUD:
+  world, a blip on the minimap, and an objective line on the HUD. All eight
+  are playable, each with its own twist:
   1. First Fare — $400 · 2. The Courier — $600 · 3. Lose the Heat — $900
-  (steal the marked gold car). Jobs 4–8 (Harbor Heist, Night Market Run,
-  The Rival, The Debt Collector, The Last Getaway) are listed on the title
-  screen and arrive in the next build.
+  (steal the marked gold car, lose 3 stars) · 4. Harbor Heist — $1,200
+  (steal the green crate truck at the container yard) · 5. Night Market
+  Run — $1,400 (three drops across the city, one clock per leg) ·
+  6. The Rival — $1,600 (race Viko to the North Gate — he drives the same
+  route, and the minimap shows him as a pink dot) · 7. The Debt
+  Collector — $1,800 (grab the package at the East Pier, then outrun
+  3 stars of enforcers) · 8. The Last Getaway — $2,500 (harbor pickup
+  under five stars, beachfront finish). Completing job 8 clears the
+  $6,400 debt and the title screen says so.
 - **Combat** — a pistol on foot, with tracers, muzzle flash, and screen
   shake. Three hits disable a cruiser.
 - **HUD + live minimap** — cash, wanted stars, speed, health, objective,
@@ -90,8 +99,8 @@ after dark, and real-time shadows.
 - **Save** — progress (cash, job reached, jobs done) is stored in
   localStorage and saved at the safehouse; the title screen offers
   CONTINUE when a save exists.
-- **Sound** — one synthesized radio station (BAY FM), engine and skid
-  noise, sirens, alarms, gunshots, and payout blips — all WebAudio, no
+- **Sound** — two synthesized radio stations (BAY FM, DUSK FM), engine and
+  skid noise, sirens, alarms, gunshots, and payout blips — all WebAudio, no
   audio files.
 
 ## Screenshots
@@ -100,12 +109,13 @@ The four frames in `screenshots/` are real renders of the game, taken in
 headless Chrome from deterministic stagings (`?shot=chase|steal|harbor|start`
 with a fixed seed — see `game/src/shots.js`):
 
-1. `chase.jpg` — the cover: a 4-star chase downtown, helicopter
-   searchlight overhead, Job 3 on the clock.
+1. `chase.jpg` — the cover: a 4-star chase downtown, the helicopter body
+   with its red stripe overhead, Job 3 on the clock.
 2. `steal.jpg` — Dara on foot in the night market, about to steal a car.
-3. `harbor.jpg` — Job 3 at the container yard, gold getaway car, safehouse
-   toast.
-4. `start.jpg` — the title screen over the city, with the job list.
+3. `harbor.jpg` — Job 3 at the container yard, gold getaway car clear of
+   the palms, safehouse toast.
+4. `start.jpg` — the title screen over the city, with the job list — all
+   eight jobs open.
 
 ## Layout
 
@@ -126,11 +136,12 @@ game/
     police.js            wanted level, cruisers, roadblocks
     helicopter.js        4+ star helicopter + searchlight
     story.js             the 8-job arc (Dara vs Madame Sari)
-    missions.js          pickup → timed drive → drop-off
+    missions.js          pickup → timed drive → drop-off, ×8 jobs: steals,
+                         multi-drops, heat, the rival race, the finale
     combat.js            pistol, tracers, cruiser damage
     hud.js               cash, stars, speed, health, objective, screens
     minimap.js           live 2D minimap canvas
-    audio.js             BAY FM + engine / siren / gunshot synthesis
+    audio.js             BAY FM + DUSK FM, engine / siren / gunshot synthesis
     save.js              localStorage save / load
     effects.js           skid smoke, muzzle flash
     shots.js             deterministic screenshot staging + autopilot

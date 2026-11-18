@@ -1,7 +1,14 @@
-// The story: Dara, a getaway driver, owes the harbor boss 8 jobs. Each job is
-// pickup → timed drive → drop-off. Jobs 1–3 are playable in v1; 4–8 are defined
-// here so the arc, the dialogue and the start-screen list are real, and unlock
-// in iteration 2.
+// The story: Dara, a getaway driver, owes the harbor boss 8 jobs. Every job
+// is pickup → timed drive → drop-off, and every job has its own twist — a
+// steal, a three-stop run, a race, a getaway under full heat. Finish all
+// eight and the $6,400 debt is gone.
+//
+// A job can carry extra fields:
+//   steal — the pickup is a marked car; getting in it starts the escape
+//   heat — wanted stars added the moment the cargo is picked up
+//   drops — a list of drop-offs in order; time applies to each leg
+//   race — Viko the rival drives the route too; beat him to the finish
+//   stealColor — the marked car's paint
 export const STORY = {
   hero: 'Dara',
   boss: 'Madame Sari',
@@ -34,24 +41,35 @@ export const STORY = {
       time: 130,
       pay: 900,
       steal: true,
+      heat: 3,
+      stealColor: 0xd9a527,
     },
     {
       id: 4,
       title: 'Harbor Heist',
-      briefing: 'Madame Sari: "Containers at the dock hold more than fish. Lift the crate, lose the cruisers."',
-      pickup: { x: -120, z: 108, label: 'Container Yard' },
+      briefing: 'Madame Sari: "Containers at the dock hold more than fish. Lift the crate truck, lose the cruisers."',
+      pickup: { x: -140, z: 100, label: 'Container Yard' },
       drop: { x: 100, z: -40, label: 'Old Town Garage' },
       time: 110,
       pay: 1200,
+      steal: true,
+      heat: 2,
+      stealColor: 0x3da55c,
     },
     {
       id: 5,
       title: 'Night Market Run',
       briefing: 'Madame Sari: "The market never sleeps and neither do the cops. Three drops, one night."',
       pickup: { x: -80, z: 20, label: 'Night Market' },
+      drops: [
+        { x: 120, z: 40, label: 'East Pier' },
+        { x: -40, z: -120, label: 'North Gate' },
+        { x: 40, z: -80, label: 'Glass Tower' },
+      ],
       drop: { x: 40, z: -80, label: 'Glass Tower' },
-      time: 120,
+      time: 55,
       pay: 1400,
+      heat: 1,
     },
     {
       id: 6,
@@ -61,15 +79,23 @@ export const STORY = {
       drop: { x: -40, z: -120, label: 'North Gate' },
       time: 95,
       pay: 1600,
+      race: true,
+      rivalSpeed: 16.5,
+      rivalRoute: [
+        [0, 80],
+        [0, -120],
+        [-40, -120],
+      ],
     },
     {
       id: 7,
       title: 'The Debt Collector',
-      briefing: 'Madame Sari: "Someone is collecting from my people. Collect from him first."',
+      briefing: 'Madame Sari: "Someone is collecting from my people. Collect from him first — then run."',
       pickup: { x: 120, z: 0, label: 'East Pier' },
       drop: { x: -100, z: -92, label: 'Safehouse' },
       time: 125,
       pay: 1800,
+      heat: 3,
     },
     {
       id: 8,
@@ -79,6 +105,7 @@ export const STORY = {
       drop: { x: 80, z: 104, label: 'Beachfront Hotel' },
       time: 150,
       pay: 2500,
+      heat: 5,
     },
   ],
 };

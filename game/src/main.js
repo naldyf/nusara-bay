@@ -61,6 +61,7 @@ const G = {
   cash: PLAYER.cashStart,
   health: PLAYER.healthMax,
   jobsDone: 0,
+  debtCleared: false,
   screen: 'title',
   cameraYaw: 0,
   shake: 0,
@@ -119,7 +120,7 @@ function jobListHtml() {
   return STORY.jobs
     .map((job) => {
       const cls = job.id <= G.jobsDone ? 'done' : job.id === G.jobsDone + 1 ? 'next' : 'locked';
-      const state = job.id <= G.jobsDone ? 'DONE' : job.id === G.jobsDone + 1 ? 'NEXT' : job.id <= 3 ? 'OPEN' : 'LOCKED — NEXT BUILD';
+      const state = job.id <= G.jobsDone ? 'DONE' : job.id === G.jobsDone + 1 ? 'NEXT' : 'OPEN';
       return `<div class="${cls}">JOB ${job.id} — ${job.title} · $${job.pay} · ${state}</div>`;
     })
     .join('');
@@ -143,8 +144,15 @@ function startGame() {
     G.jobsDone = save.jobsDone || 0;
     G.health = save.health ?? PLAYER.healthMax;
     G.missions.jobIndex = save.jobIndex;
-    G.missions.objective = `JOB ${save.jobIndex + 1}: ${STORY.jobs[save.jobIndex].title} — continue at the marker.`;
-    G.missions.startJob(save.jobIndex);
+    G.debtCleared = G.jobsDone >= STORY.jobs.length;
+    if (G.debtCleared) {
+      // The debt is paid — no more jobs, just the city.
+      G.missions.objective = 'DEBT CLEARED — $6,400 paid. Dara is free. Free roam!';
+      G.missions.phase = 'idle';
+    } else {
+      G.missions.objective = `JOB ${save.jobIndex + 1}: ${STORY.jobs[save.jobIndex].title} — continue at the marker.`;
+      G.missions.startJob(save.jobIndex);
+    }
   } else {
     G.cash = PLAYER.cashStart;
     G.jobsDone = 0;

@@ -1,7 +1,7 @@
-// Sound, all synthesized with WebAudio — no audio files, no network. One
-// procedural radio station (BAY FM), an engine hum that follows speed, a
-// two-tone siren, skid noise, and the little blips that say "job done".
-// The context only starts on a user gesture; screenshots run silent.
+// Sound, all synthesized with WebAudio — no audio files, no network. Two
+// procedural radio stations (BAY FM, DUSK FM), an engine hum that follows
+// speed, a two-tone siren, skid noise, and the little blips that say "job
+// done". The context only starts on a user gesture; screenshots run silent.
 export function createAudio() {
   let ctx = null;
   let engineOsc = null;
@@ -10,7 +10,7 @@ export function createAudio() {
   let sirenOsc = null;
   let sirenGain = null;
   let radioTimer = null;
-  let radioOn = false;
+  let station = -1; // -1 off, 0 BAY FM, 1 DUSK FM
   let chordStep = 0;
 
   function ensure() {
@@ -68,26 +68,46 @@ export function createAudio() {
     o.stop(t + dur + 0.02);
   }
 
-  // BAY FM: Am – F – C – G, a warm pad chord every two seconds, plus a bass
-  // note a fifth below. Scheduled on a timer so the loop never drifts.
-  const CHORDS = [
-    [220, 261.6, 329.6],
-    [174.6, 220, 261.6],
-    [196, 246.9, 293.7],
-    [164.8, 196, 246.9],
+  // Two stations, both synthesized. BAY FM: Am – F – C – G, warm triangle
+  // pads. DUSK FM: Dm – Bb – F – C, slower sine pads for the late-night
+  // drive. Scheduled on a timer so the loop never drifts.
+  const STATIONS = [
+    {
+      name: 'BAY FM ♪',
+      wave: 'triangle',
+      vol: 0.05,
+      chords: [
+        [220, 261.6, 329.6],
+        [174.6, 220, 261.6],
+        [196, 246.9, 293.7],
+        [164.8, 196, 246.9],
+      ],
+    },
+    {
+      name: 'DUSK FM ♪',
+      wave: 'sine',
+      vol: 0.06,
+      chords: [
+        [146.8, 220, 293.7],
+        [116.5, 174.6, 233.1],
+        [174.6, 220, 261.6],
+        [130.8, 196, 261.6],
+      ],
+    },
   ];
   function playChord() {
-    if (!ctx || !radioOn) return;
-    const chord = CHORDS[chordStep % CHORDS.length];
+    if (!ctx || station < 0) return;
+    const st = STATIONS[station];
+    const chord = st.chords[chordStep % st.chords.length];
     chordStep++;
     const t = ctx.currentTime;
     for (const f of chord) {
       const o = ctx.createOscillator();
-      o.type = 'triangle';
+      o.type = st.wave;
       o.frequency.value = f;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.05, t + 0.4);
+      g.gain.linearRampToValueAtTime(st.vol, t + 0.4);
       g.gain.linearRampToValueAtTime(0.001, t + 2.1);
       o.connect(g);
       g.connect(ctx.destination);
@@ -163,17 +183,18 @@ export function createAudio() {
     },
     toggleRadio() {
       if (!ensure()) return false;
-      radioOn = !radioOn;
-      if (radioOn && !radioTimer) radioTimer = setInterval(playChord, 2000);
-      if (!radioOn && radioTimer) {
+      // M cycles: off → BAY FM → DUSK FM → off.
+      station = station + 1 > 1 ? -1 : station + 1;
+      if (station >= 0 && !radioTimer) radioTimer = setInterval(playChord, 2000);
+      if (station < 0 && radioTimer) {
         clearInterval(radioTimer);
         radioTimer = null;
       }
-      if (radioOn) playChord();
-      return radioOn;
+      if (station >= 0) playChord();
+      return station >= 0;
     },
     radioLabel() {
-      return radioOn ? 'BAY FM ♪' : 'RADIO OFF — press M';
+      return station < 0 ? 'RADIO OFF — press M' : STATIONS[station].name;
     },
   };
 }

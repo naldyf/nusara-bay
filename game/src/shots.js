@@ -9,7 +9,7 @@ function jobListHtml(G) {
   return STORY.jobs
     .map((job) => {
       const cls = job.id <= G.jobsDone ? 'done' : job.id === G.jobsDone + 1 ? 'next' : 'locked';
-      const state = job.id <= G.jobsDone ? 'DONE' : job.id === G.jobsDone + 1 ? 'NEXT' : job.id <= 3 ? 'OPEN' : 'LOCKED — NEXT BUILD';
+      const state = job.id <= G.jobsDone ? 'DONE' : job.id === G.jobsDone + 1 ? 'NEXT' : 'OPEN';
       return `<div class="${cls}">JOB ${job.id} — ${job.title} · $${job.pay} · ${state}</div>`;
     })
     .join('');
@@ -25,15 +25,15 @@ export function stageShot(G, name, seed) {
     G.player.getIn(car, G);
     car.speed = 22;
     G.police.wanted = 4;
-    // Two cruisers right behind the player, in frame for the cover.
+    // Two cruisers flanking behind the player, in frame for the cover.
     const c1 = G.police.spawnCruiser(G);
-    c1.pos.x = 4;
-    c1.pos.z = 34;
+    c1.pos.x = 7;
+    c1.pos.z = 32;
     c1.heading = Math.PI;
     c1.speed = 24;
     const c2 = G.police.spawnCruiser(G);
-    c2.pos.x = -5;
-    c2.pos.z = 38;
+    c2.pos.x = -8;
+    c2.pos.z = 35;
     c2.heading = Math.PI;
     c2.speed = 24;
     G.missions.jobIndex = 2;
@@ -46,6 +46,12 @@ export function stageShot(G, name, seed) {
     return (dt) => {
       t += dt;
       input.fake('KeyW', true);
+      // Keep the helicopter pinned just ahead of the car, low and in frame,
+      // so the cover shows the body and its red stripe — not only the beam.
+      // Turned side-on to the camera so the striped flank reads.
+      const p = G.player.car.pos;
+      const h = G.player.car.heading;
+      G.heli.mesh.position.set(p.x + Math.sin(h) * 16, 14, p.z + Math.cos(h) * 16);
       return t > 3.2;
     };
   }
@@ -68,15 +74,17 @@ export function stageShot(G, name, seed) {
   }
   if (name === 'harbor') {
     // Job 3 in progress at the container yard: Dara on foot facing south,
-    // pistol out, the gold getaway car ahead, cranes and the water behind it,
-    // the safehouse toast still showing.
-    const car = createCar(G.scene, -58, 101, Math.PI / 2, 0xd9a527);
+    // pistol out, the gold getaway car ahead on open dock, cranes and the
+    // water behind it, the safehouse toast still showing. The car sits in
+    // the clear lane between the container stacks (x -70, z 100) so nothing
+    // crosses it.
+    const car = createCar(G.scene, -70, 100, Math.PI / 2, 0xd9a527);
     car.parked = true;
     G.parked.push(car);
-    G.player.pos.x = -62;
-    G.player.pos.z = 97;
-    G.player.heading = Math.PI / 4;
-    G.player.mesh.position.set(-62, 0, 97);
+    G.player.pos.x = -70;
+    G.player.pos.z = 93;
+    G.player.heading = 0;
+    G.player.mesh.position.set(-70, 0, 93);
     G.police.wanted = 2;
     G.missions.jobIndex = 2;
     G.missions.phase = 'deliver';
