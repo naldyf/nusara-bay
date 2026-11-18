@@ -1,79 +1,104 @@
-// The screenshot scenes behind ?shot=start|play|end. Each one plays the real rules forward from a
-// fresh world for a fixed number of steps, steered by a simple autopilot (look ahead each way the
-// paddle could move, keep clear of blocks, chase the lowest coin when that is safe), so the frame
-// is what a short game really looks like and the same seed always gives the same frame.
-import { FIELD, PLAYER, STEP } from './config.js';
-import { EVENT_OVER, KIND_BLOCK } from './world.js';
-import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+// Screenshot staging: ?shot=chase|steal|harbor|start&seed=N puts the real game
+// in a chosen state and drives it forward with a scripted autopilot — the
+// frames are genuine gameplay, not a posed diorama. When the scene is ready
+// the autopilot returns true and main.js sets window.__shotReady.
+import { STORY } from './story.js';
+import { createCar } from './vehicles.js';
 
-const START_SECONDS = 5;
-const PLAY_SECONDS = 26;
-const END_LIMIT_SECONDS = 600;
-/**
- * How far ahead, in seconds, the autopilot checks each way it could move: the play scene's pilot
- * looks well ahead and keeps all its lives; the end scene's looks only a moment ahead, so it is
- * caught out once the blocks speed up, as a hurried player is.
- */
-const HORIZON_PLAY = 0.7;
-const HORIZON_END = 0.25;
-const SAMPLE = 1 / 30;
-const DIRECTIONS = [0, -1, 1];
-/** Extra room, each side, it keeps between the paddle and a block. */
-const MARGIN = 10;
-
-/** Seconds until moving in `direction` (-1, 0, 1) runs the paddle into a block; Infinity when it never does. */
-function timeToHit(state, direction, horizon) {
-  const player = state.player;
-  for (let t = SAMPLE; t <= horizon; t += SAMPLE) {
-    const x = Math.min(FIELD.width - player.width, Math.max(0, player.x + direction * PLAYER.speed * t));
-    for (let index = 0; index < state.items.length; index += 1) {
-      const item = state.items[index];
-      if (!item.active || item.kind !== KIND_BLOCK) continue;
-      const y = item.y + item.speed * t;
-      if (y + item.height > player.y && y < player.y + player.height && item.x < x + player.width + MARGIN && item.x + item.width > x - MARGIN) return t;
-    }
-  }
-  return Infinity;
+function jobListHtml(G) {
+  return STORY.jobs
+    .map((job) => {
+      const cls = job.id <= G.jobsDone ? 'done' : job.id === G.jobsDone + 1 ? 'next' : 'locked';
+      const state = job.id <= G.jobsDone ? 'DONE' : job.id === G.jobsDone + 1 ? 'NEXT' : job.id <= 3 ? 'OPEN' : 'LOCKED — NEXT BUILD';
+      return `<div class="${cls}">JOB ${job.id} — ${job.title} · $${job.pay} · ${state}</div>`;
+    })
+    .join('');
 }
 
-/** Of the safe ways to move, the one toward the lowest coin (or the centre); else the one that is hit last. */
-function autopilot(state, horizon) {
-  const player = state.player;
-  let coin = null;
-  for (let index = 0; index < state.items.length; index += 1) {
-    const item = state.items[index];
-    if (item.active && item.kind !== KIND_BLOCK && (coin === null || item.y > coin.y)) coin = item;
+export function stageShot(G, name, seed) {
+  const input = G.input;
+  let t = 0;
+  if (name === 'chase') {
+    // Cover: Dara mid-drift downtown, 4 wanted stars, cruisers behind,
+    // helicopter overhead, Job 3 on the clock, minimap full of blips.
+    const car = createCar(G.scene, 0, 24, Math.PI, 0xc94f4f);
+    G.player.getIn(car, G);
+    car.speed = 22;
+    G.police.wanted = 4;
+    // Two cruisers right behind the player, in frame for the cover.
+    const c1 = G.police.spawnCruiser(G);
+    c1.pos.x = 4;
+    c1.pos.z = 34;
+    c1.heading = Math.PI;
+    c1.speed = 24;
+    const c2 = G.police.spawnCruiser(G);
+    c2.pos.x = -5;
+    c2.pos.z = 38;
+    c2.heading = Math.PI;
+    c2.speed = 24;
+    G.missions.jobIndex = 2;
+    G.missions.phase = 'deliver';
+    G.missions.timer = 72;
+    G.missions.objective = 'JOB 3: LOSE THE HEAT — get to the safehouse';
+    G.missions.placeMarker(-100, -92);
+    G.minimap.setObjective(-100, -92);
+    G.cash = 1240;
+    return (dt) => {
+      t += dt;
+      input.fake('KeyW', true);
+      return t > 3.2;
+    };
   }
-  const target = coin === null ? FIELD.width / 2 : coin.x + coin.width / 2;
-  const centre = player.x + player.width / 2;
-  const wanted = target > centre + 8 ? 1 : target < centre - 8 ? -1 : 0;
-  let best = wanted;
-  let bestTime = timeToHit(state, wanted, horizon);
-  for (let index = 0; index < DIRECTIONS.length && bestTime !== Infinity; index += 1) {
-    const time = timeToHit(state, DIRECTIONS[index], horizon);
-    if (time > bestTime) {
-      bestTime = time;
-      best = DIRECTIONS[index];
-    }
+  if (name === 'steal') {
+    // On foot on the market street beside a parked car, prompt up, a cruiser
+    // closing in the background, pedestrians scattering from passing traffic.
+    const car = createCar(G.scene, -77.5, 4.4, Math.PI / 2, 0x4f7ec9);
+    car.parked = true;
+    G.parked.push(car);
+    G.player.pos.x = -80;
+    G.player.pos.z = 4.4;
+    G.player.heading = Math.PI / 2;
+    G.player.mesh.position.set(-80, 0, 4.4);
+    G.police.wanted = 1;
+    G.cash = 250;
+    return (dt) => {
+      t += dt;
+      return t > 2.6;
+    };
   }
-  return best;
-}
-
-/**
- * Set `world` to the named scene (start, play or end; any other name is start) and return the
- * screen to draw over it and the best score to show.
- */
-export function stageShot(name, world) {
-  world.reset();
-  if (name !== 'play' && name !== 'end') {
-    for (let index = 0; index < START_SECONDS / STEP; index += 1) world.step(STEP, 0, true);
-    return { screen: SCREEN_TITLE, best: 0 };
+  if (name === 'harbor') {
+    // Job 3 in progress at the container yard: Dara on foot facing south,
+    // pistol out, the gold getaway car ahead, cranes and the water behind it,
+    // the safehouse toast still showing.
+    const car = createCar(G.scene, -58, 101, Math.PI / 2, 0xd9a527);
+    car.parked = true;
+    G.parked.push(car);
+    G.player.pos.x = -62;
+    G.player.pos.z = 97;
+    G.player.heading = Math.PI / 4;
+    G.player.mesh.position.set(-62, 0, 97);
+    G.police.wanted = 2;
+    G.missions.jobIndex = 2;
+    G.missions.phase = 'deliver';
+    G.missions.timer = 60;
+    G.missions.objective = 'JOB 3: LOSE THE HEAT — get to the safehouse — 1:00';
+    G.missions.placeMarker(-100, -92);
+    G.minimap.setObjective(-100, -92);
+    G.cash = 2140;
+    G.hud.toast('PROGRESS SAVED — safehouse');
+    return (dt) => {
+      t += dt;
+      return t > 2.6;
+    };
   }
-  const limit = name === 'end' ? END_LIMIT_SECONDS : PLAY_SECONDS;
-  const horizon = name === 'end' ? HORIZON_END : HORIZON_PLAY;
-  for (let index = 0; index < limit / STEP; index += 1) {
-    if (world.step(STEP, autopilot(world.state, horizon), false) & EVENT_OVER) break;
+  if (name === 'start') {
+    // Title screen over the live city at dusk, job list and system line on show.
+    G.screen = 'title';
+    G.hud.showScreen('title', { joblist: jobListHtml(G), hasSave: false });
+    return (dt) => {
+      t += dt;
+      return t > 1.6;
+    };
   }
-  const over = world.state.lives === 0;
-  return { screen: over ? SCREEN_OVER : SCREEN_PLAY, best: world.state.score };
+  return () => true;
 }

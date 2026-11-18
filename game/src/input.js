@@ -1,53 +1,81 @@
-// Keyboard and pointer input. Held keys give a steering direction; one-shot presses (start or
-// restart, pause) are queued as bit flags and taken once by the loop, so a press between two
-// frames is never lost and never counted twice.
+// Keyboard and mouse. The game reads plain state every frame; actions are
+// edge-triggered (pressed this frame) so E to steal and F to shoot fire once.
+export const ACTION_ENTER = 'enter';
+export const ACTION_SHOOT = 'shoot';
+export const ACTION_PAUSE = 'pause';
+export const ACTION_CONFIRM = 'confirm';
+export const ACTION_RADIO = 'radio';
+export const ACTION_NOS = 'nos';
 
-export const ACTION_CONFIRM = 1;
-export const ACTION_PAUSE = 2;
+const KEYMAP = {
+  KeyE: ACTION_ENTER,
+  KeyF: ACTION_SHOOT,
+  Escape: ACTION_PAUSE,
+  Enter: ACTION_CONFIRM,
+  KeyM: ACTION_RADIO,
+  ShiftLeft: ACTION_NOS,
+  ShiftRight: ACTION_NOS,
+};
 
-const LEFT = new Set(['ArrowLeft', 'KeyA']);
-const RIGHT = new Set(['ArrowRight', 'KeyD']);
-const CONFIRM = new Set(['Space', 'Enter']);
-const PAUSE = new Set(['KeyP', 'Escape']);
+export function createInput() {
+  const keys = new Set();
+  const pressed = new Set();
+  let mouseDown = false;
+  let mousePressed = false;
 
-export function createInput(target) {
-  let left = false;
-  let right = false;
-  let actions = 0;
-
-  window.addEventListener('keydown', (event) => {
-    if (LEFT.has(event.code)) left = true;
-    else if (RIGHT.has(event.code)) right = true;
-    else if (CONFIRM.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_CONFIRM;
-    } else if (PAUSE.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_PAUSE;
-    } else return;
-    event.preventDefault();
+  function onKeyDown(e) {
+    if (e.repeat) return;
+    keys.add(e.code);
+    const a = KEYMAP[e.code];
+    if (a) pressed.add(a);
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+      e.preventDefault();
+    }
+  }
+  function onKeyUp(e) {
+    keys.delete(e.code);
+  }
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('mousedown', () => {
+    mouseDown = true;
+    mousePressed = true;
   });
-  window.addEventListener('keyup', (event) => {
-    if (LEFT.has(event.code)) left = false;
-    else if (RIGHT.has(event.code)) right = false;
-  });
-  // A key released while the tab is hidden never sends keyup: let go of everything on blur.
-  window.addEventListener('blur', () => {
-    left = false;
-    right = false;
-  });
-  target.addEventListener('pointerdown', () => {
-    actions |= ACTION_CONFIRM;
+  window.addEventListener('mouseup', () => {
+    mouseDown = false;
   });
 
   return {
-    /** -1 for left, 1 for right, 0 for neither or both. */
-    direction() {
-      return (right ? 1 : 0) - (left ? 1 : 0);
+    // Held movement: -1..1 on each axis (WASD and arrows).
+    axis() {
+      const x = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
+      const y = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
+      return { x, y };
     },
-    /** The one-shot presses since the last call, as ACTION_* flags. */
-    takeActions() {
-      const taken = actions;
-      actions = 0;
-      return taken;
+    handbrake() {
+      return keys.has('Space');
+    },
+    run() {
+      return keys.has('ShiftLeft') || keys.has('ShiftRight');
+    },
+    mouseDown() {
+      return mouseDown;
+    },
+    // True once, the frame the action happened.
+    action(name) {
+      return pressed.has(name) || (name === ACTION_SHOOT && mousePressed);
+    },
+    endFrame() {
+      pressed.clear();
+      mousePressed = false;
+    },
+    // Test/autopilot hook: pretend a key is held.
+    fake(code, down) {
+      if (down) keys.add(code);
+      else keys.delete(code);
+    },
+    fakeAction(name) {
+      pressed.add(name);
     },
   };
 }

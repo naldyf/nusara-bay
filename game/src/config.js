@@ -1,61 +1,64 @@
-// Every tuning number and colour in one place. The playfield is a fixed 1280x720 logical area;
-// the renderer scales it to the window, so no rule below depends on the screen size.
-
-export const FIELD = { width: 1280, height: 720, groundY: 664 };
-
-/** The simulation's fixed step, in seconds: 60 updates a second whatever the display's rate. */
-export const STEP = 1 / 60;
-
-export const PLAYER = {
-  width: 72,
-  height: 24,
-  speed: 560,
-  invulnerable: 1.5,
+// Nusara Bay — all tuning in one place. Every number the game balances on lives
+// here so a tuning pass touches one file and nothing else.
+export const WORLD = {
+  half: 170, // city ground spans -170..170 on x and z
+  streetGap: 40, // streets every 40 units
+  streets: [-120, -80, -40, 0, 40, 80, 120],
+  roadWidth: 10,
+  waterZ: 118, // teal water starts south of this line
+  beachZ: 100, // sand strip between beachZ and waterZ
 };
 
-export const LIVES = 3;
-
-export const BLOCK = {
-  minWidth: 40,
-  maxWidth: 110,
-  height: 36,
-  speed: 240,
-  speedPerLevel: 30,
-  speedJitter: 90,
-  interval: 0.55,
-  intervalScale: 0.88,
-  minInterval: 0.14,
-  dodgePoints: 1,
+export const CAR = {
+  topSpeed: 30,
+  reverseSpeed: 11,
+  accel: 16,
+  brake: 34,
+  steerMax: 0.55, // radians of front-wheel angle at low speed
+  grip: 6.5, // lateral grip; lower = more slide
+  handbrakeGrip: 1.6,
+  radius: 1.7,
 };
 
-export const COIN = {
-  size: 24,
-  speed: 190,
-  speedPerLevel: 14,
-  interval: 1.4,
-  intervalJitter: 0.8,
-  points: 10,
+export const FOOT = { walk: 5.2, run: 8.4, radius: 0.55 };
+
+export const POLICE = {
+  cruiserTop: 27,
+  cruiserAccel: 15,
+  ramDamage: 9,
+  spawnDist: 70,
+  maxCruisers: 5,
+  decayDelay: 10, // seconds with no police near before wanted drops
+  bustedRange: 3.0,
+  bustedTime: 3,
 };
 
-/** Seconds of play per level, and the last level: speeds and spawn rates stop growing there. */
-export const LEVEL = { seconds: 12, max: 12 };
+export const TRAFFIC = { count: 14, topSpeed: 12 };
+export const PEDS = { count: 26 };
 
-/** How many falling things can exist at once; the pool is allocated once, at boot. */
-export const POOL_SIZE = 64;
+export const PLAYER = { healthMax: 100, cashStart: 250 };
 
+export const JOB_TIME = { pickup: 999, deliver: 90 };
+
+export const SAVE_KEY = 'nusara-bay-save-v1';
+
+// Dusk tropical palette: teal water, amber sodium light, magenta/cyan neon,
+// low sun and long shadows — deliberately not the pale Mediterranean look.
 export const PALETTE = {
-  backdrop: '#11141b',
-  sky: '#1b1f2a',
-  ground: '#2a3040',
-  player: '#4fc3f7',
-  block: '#e5534b',
-  coin: '#f2c94c',
-  panel: '#252b38',
-  text: '#eef1f5',
-  muted: '#8b93a3',
+  sky: 0x2b1d4e,
+  fog: 0x35224f,
+  sun: 0xffb36b,
+  sunIntensity: 3.2,
+  hemiSky: 0x8a6fb8,
+  hemiGround: 0x3a2a22,
+  hemiIntensity: 0.85,
+  water: 0x0e7d8a,
+  sand: 0xc9a06a,
+  asphalt: 0x34343f,
+  sidewalk: 0x4d485c,
+  downtownGlass: [0x5f9cc0, 0x4a7fa5, 0x7fb8d4, 0x3d6f92],
+  downtownLit: 0xffd27a,
+  house: [0xd98a5f, 0xc96f4a, 0xe8b07a, 0xb85c6e, 0x7a9e7e],
+  container: [0xd95f2e, 0x2e7dd9, 0x3da55c, 0xc9a227, 0x8a4f9e],
+  neon: [0xff2e88, 0x00e5ff, 0xffd21f, 0x7cff4f],
 };
-
-export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
-
-/** Where the best score is kept between visits (this browser only). */
-export const BEST_KEY = 'block-dodger.best';
