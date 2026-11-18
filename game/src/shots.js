@@ -48,7 +48,6 @@ export function stageShot(G, name, seed) {
       input.fake('KeyW', true);
       // Keep the helicopter pinned just ahead of the car, low and in frame,
       // so the cover shows the body and its red stripe — not only the beam.
-      // Turned side-on to the camera so the striped flank reads.
       const p = G.player.car.pos;
       const h = G.player.car.heading;
       G.heli.mesh.position.set(p.x + Math.sin(h) * 16, 14, p.z + Math.cos(h) * 16);
