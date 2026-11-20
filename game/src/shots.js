@@ -25,11 +25,13 @@ export function stageShot(G, name, seed) {
   const input = G.input;
   let t = 0;
   if (name === 'chase') {
-    // Cover: Dara mid-chase downtown at 4 stars. The hero car is the
-    // subject, two cruisers flank close alongside it with their light bars
-    // flashing (inside the frame, not at the edges where they read as
-    // traffic), and the helicopter hangs ahead and to the side, low enough
-    // to sit clear of the wanted stars. Job 3 on the clock.
+    // Cover: Dara mid-chase downtown at 4 stars, driving the marked gold
+    // sedan from Job 3 — the job's premise is stealing that sedan, so the
+    // cover shows it, not an ordinary red car. Two cruisers flank close
+    // alongside it with their light bars flashing (inside the frame, not
+    // at the edges where they read as traffic), and the helicopter hangs
+    // ahead and to the side, low enough to sit clear of the wanted stars.
+    // Job 3 on the clock.
     //
     // The cruisers and the helicopter are PINNED to the player car every
     // frame by the autopilot below, the same way the helicopter already
@@ -38,7 +40,7 @@ export function stageShot(G, name, seed) {
     // the moment of a real chase; it does not fake a state the game cannot
     // reach. The briefing dialogue is deliberately NOT shown here — its
     // panel sat across the middle of the frame, hiding the cruisers.
-    const car = createCar(G.scene, 0, 24, Math.PI, 0xc94f4f, false, true);
+    const car = createCar(G.scene, 0, 24, Math.PI, 0xd9a527, false, true);
     G.player.getIn(car, G);
     car.speed = 22;
     G.police.wanted = 4;
@@ -93,6 +95,11 @@ export function stageShot(G, name, seed) {
   if (name === 'steal') {
     // On foot on the market street beside a parked car, prompt up, a cruiser
     // closing in the background, pedestrians scattering from passing traffic.
+    // Staged as Job 1 in its pickup phase — the state fresh play actually
+    // shows (startJob(0) runs the moment the game starts), not the idle
+    // free-roam objective the old staging used. The pickup marker is 12
+    // units north of Dara, outside the 7-unit pickup radius, so the job
+    // cannot complete itself during the staging.
     const car = createCar(G.scene, -77.5, 4.4, Math.PI / 2, 0x4f7ec9);
     car.parked = true;
     G.parked.push(car);
@@ -101,6 +108,12 @@ export function stageShot(G, name, seed) {
     G.player.heading = Math.PI / 2;
     G.player.mesh.position.set(-80, 0, 4.4);
     G.police.wanted = 1;
+    G.missions.jobIndex = 0;
+    G.missions.phase = 'pickup';
+    G.missions.timer = 0;
+    G.missions.objective = 'JOB 1: First Fare — go to Night Market';
+    G.missions.placeMarker(-80, -8);
+    G.minimap.setObjective(-80, -8);
     G.cash = 250;
     return (dt) => {
       t += dt;
@@ -108,27 +121,30 @@ export function stageShot(G, name, seed) {
     };
   }
   if (name === 'harbor') {
-    // The five-star finale (Job 8) at the dock: Dara on foot in the container
-    // yard, the gold getaway car ahead with the teal water behind it, a
-    // gantry crane to the side, a cruiser sweeping past, and the helicopter
+    // The five-star finale (Job 8) at the dock: Dara on foot on the street
+    // just north of the dock, facing east straight down the dock toward
+    // the gantry crane. The crane is 70 units ahead, so its 26-unit frame
+    // sits comfortably inside the on-foot camera's view instead of being
+    // cut off at the top edge, and its jib reads side-on, the most
+    // recognizable crane silhouette. Standing north of the container
+    // stacks keeps the sightline to the crane clear of them. The gold
+    // getaway car sits ahead to the left, three cruisers are pinned in a
+    // formation ahead of Dara, facing the camera, and the helicopter hangs
     // overhead. A real gameplay state — Job 8 in its deliver phase at five
-    // stars — with no staged toast and no posed save. The gold car sits
-    // close in front of Dara, so the mid-ground is the getaway car and not
-    // empty dock.
-    const car = createCar(G.scene, -64, 114, Math.PI / 2, 0xd9a527, false, true);
+    // stars — with no staged toast and no posed save. The crane's legs and
+    // jib are the proof this is a working harbor, not any waterfront
+    // container yard.
+    const car = createCar(G.scene, -103, 88, Math.PI / 2, 0xd9a527, false, true);
     car.parked = true;
     G.parked.push(car);
-    G.player.pos.x = -70;
-    G.player.pos.z = 106;
-    G.player.heading = 0;
-    G.player.mesh.position.set(-70, 0, 106);
+    G.player.pos.x = -115;
+    G.player.pos.z = 96;
+    G.player.heading = Math.PI / 2;
+    G.player.mesh.position.set(-115, 0, 96);
     G.police.wanted = 5;
-    // One cruiser sweeping east along the dock's south edge, in frame.
-    const c1 = G.police.spawnCruiser(G);
-    c1.pos.x = -100;
-    c1.pos.z = 126;
-    c1.heading = Math.PI / 2;
-    c1.speed = 20;
+    // One cruiser up front so the formation has something to pin from the
+    // first frame; the pursuit spawns the rest to match five stars.
+    G.police.spawnCruiser(G);
     G.missions.jobIndex = 7;
     G.missions.phase = 'deliver';
     G.missions.timer = 96;
@@ -137,16 +153,39 @@ export function stageShot(G, name, seed) {
     G.cash = 8150;
     return (dt) => {
       t += dt;
-      // Pin the helicopter ahead and to the right of Dara, low enough to
-      // clear the wanted stars — the old pin (14 ahead, y 9) put its body
-      // at the very top edge, the rotor clipped by the frame. The on-foot
-      // camera sits lower and closer than the chase cam, so the same height
-      // reads higher here: 16 ahead and y 8 puts the whole aircraft,
-      // rotor disc included, in the upper third. Same rule as the cover,
-      // and the pin is close to the helicopter's own hover height (y 9), so
-      // the body barely moves when the pin stops at capture time.
       const p = G.player.pos;
       const h = G.player.heading;
+      const fx = Math.sin(h);
+      const fz = Math.cos(h);
+      const rx = -Math.cos(h);
+      const rz = Math.sin(h);
+      // Pin EVERY cruiser into a formation ahead of Dara. At five stars
+      // the pursuit spawns three cruisers that steer straight for Dara on
+      // foot — left alone one parks on top of him (3m, overlapping the
+      // shot) and the busted timer starts. The formation keeps them in
+      // frame, facing the camera, clear of Dara, the gold car and each
+      // other. The same pin the cover uses; the light bars keep flashing
+      // because police.update still runs.
+      const slots = [
+        [20, -10],
+        [26, 4],
+        [34, -16],
+      ];
+      G.police.cruisers.forEach((c, i) => {
+        const [ahead, side] = slots[i % slots.length];
+        const cx = p.x + fx * ahead + rx * side;
+        const cz = p.z + fz * ahead + rz * side;
+        c.pos.x = cx;
+        c.pos.z = cz;
+        c.heading = h + Math.PI;
+        c.speed = 0;
+        c.mesh.position.set(cx, 0, cz);
+        c.mesh.rotation.y = c.heading;
+      });
+      // Pin the helicopter ahead and to the right of Dara, low enough to
+      // clear the wanted stars — same rule as the cover, and the pin is
+      // close to the helicopter's own hover height (y 9), so the body
+      // barely moves when the pin stops at capture time.
       G.heli.mesh.position.set(
         p.x + Math.sin(h) * 16 - Math.cos(h) * 6,
         8,

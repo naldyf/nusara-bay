@@ -35,12 +35,17 @@ function getGlowTexture() {
 }
 
 // Clearcoat paint for the hero car: a hard lacquer coat over the colour, so
-// the golden-hour sun draws a long highlight along the body.
+// the golden-hour sun draws a long highlight along the body. The metalness
+// stays low on purpose: a fully metallic hero goes black on its shadow side
+// (there is no environment map to reflect), and the chase camera looks at
+// the car's rear, away from the low north-west sun — the gold sedan from
+// Job 3 has to read as gold from behind, lit by the hemisphere light, not
+// only from the sunlit side.
 function heroPaint(color) {
   return new THREE.MeshPhysicalMaterial({
     color,
-    roughness: 0.25,
-    metalness: 0.8,
+    roughness: 0.3,
+    metalness: 0.35,
     clearcoat: 1,
     clearcoatRoughness: 0.08,
   });
@@ -127,20 +132,34 @@ export function makeCarMesh(color, police = false, hero = false) {
     h.position.set(x, 0.62, 2.06);
     group.add(h);
   }
-  const tailMat = new THREE.MeshBasicMaterial({ color: hero ? 0xff3333 : 0x881111 });
+  const tailMat = new THREE.MeshBasicMaterial({
+    color: hero ? 0xff3333 : police ? 0xcc2222 : 0x881111,
+  });
   for (const x of [-0.6, 0.6]) {
     const t = new THREE.Mesh(lightGeo, tailMat);
     t.position.set(x, 0.62, -2.06);
     group.add(t);
   }
   if (police) {
+    // The light bar is bigger and brighter than before, and the car carries
+    // a black-and-white livery — a white roof panel and a white rear
+    // stripe — so a cruiser reads as police even between flashes. The old
+    // car was near-black from every angle but the bar, and the bar alone
+    // was too small to carry the identification at contact-sheet size.
     const bar = new THREE.Mesh(
-      new THREE.BoxGeometry(1.1, 0.14, 0.4),
-      new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x2233ff, emissiveIntensity: 2 }),
+      new THREE.BoxGeometry(1.3, 0.2, 0.5),
+      new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x2233ff, emissiveIntensity: 3 }),
     );
     bar.position.set(0, 1.42, -0.2);
     group.add(bar);
     group.userData.lightBar = bar;
+    const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5, metalness: 0.2 });
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.06, 1.9), whiteMat);
+    roof.position.set(0, 1.38, -0.2);
+    group.add(roof);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.16, 0.06), whiteMat);
+    stripe.position.set(0, 0.3, -2.08);
+    group.add(stripe);
   }
   group.userData.wheels = wheels;
   group.userData.tailMat = tailMat;

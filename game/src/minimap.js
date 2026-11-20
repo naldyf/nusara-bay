@@ -88,16 +88,21 @@ export function createMinimap(canvas, city) {
         ctx.lineWidth = 1;
         ctx.stroke();
       }
-      // The helicopter, when it is up — a gold dot with a white ring and a
-      // search-zone ring around the player, so the heat reads on the map as
-      // well as the sky.
+      // The helicopter, when it is up — a cyan diamond, a different colour
+      // AND shape from the gold objective circle, so the two never read as
+      // the same mark at contact-sheet size. The search-zone ring around
+      // the player stays, so the heat reads on the map as well as the sky.
       if (G.heli && G.heli.mesh.visible) {
         const [hx, hy] = toMap(G.heli.mesh.position.x, G.heli.mesh.position.z);
-        ctx.fillStyle = '#ffd21f';
+        ctx.fillStyle = '#22d3ee';
         ctx.beginPath();
-        ctx.arc(hx, hy, 5, 0, Math.PI * 2);
+        ctx.moveTo(hx, hy - 6);
+        ctx.lineTo(hx + 6, hy);
+        ctx.lineTo(hx, hy + 6);
+        ctx.lineTo(hx - 6, hy);
+        ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = '#ffffff';
+        ctx.strokeStyle = '#062a33';
         ctx.lineWidth = 1.5;
         ctx.stroke();
         const p = G.player.onFoot ? G.player.pos : G.player.car.pos;

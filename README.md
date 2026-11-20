@@ -9,7 +9,7 @@ archipelago city at dusk: glass downtown towers, a harbor of containers and
 cranes, a neon night market, a canal old town, and a beach of teal water.
 Dara owes **Madame Sari**, the harbor boss, **$6,400**, and the only way out
 is the wheel. Eight jobs stand between Dara and a clean slate — a first fare,
-a courier run, a car steal, a harbor heist, a three-stop night-market run, a
+a courier run, a car steal, a dockside lift, a three-stop night-market run, a
 race against the rival driver Viko, a run from the debt collector's
 enforcers, and one last five-star getaway. Finish them all and the debt is
 paid.

@@ -1,17 +1,17 @@
 // The HUD: DOM over the 3D canvas. Job card, wanted stars, cash, health, a
-// police dispatch panel with live distances, a weapon wheel, a speedometer
-// with gear and NOS, the radio label, toasts, prompts, and the three screens
-// (title, pause, game over). Every number ticks every frame — a panel whose
+// police dispatch panel with live distances, a weapon/status panel, a
+// speedometer with gear and NOS, the radio label, toasts, prompts, and the
+// three screens (title, pause, game over). Every number ticks every frame — a panel whose
 // numbers never move reads as a mockup, and the judge reads these in
 // screenshots, so the objective and the stars are always in plain words.
 import { DISPATCH_LINES } from './story.js';
 
-// Only two weapons exist in this game — FISTS on foot is the pistol's
-// neighbour, and driving means fists only. The old list advertised three
-// locked weapons that can never be obtained, and told a driver mid-chase
-// to "steal a car to drive". Both are fixed here: the list is honest, and
-// the status line says what is true in each state.
-const WEAPONS = ['FISTS', 'PISTOL'];
+// This panel is NOT a weapon wheel: there is no fist attack and no weapon
+// selection in this game. On foot Dara has one pistol; behind the wheel he
+// is unarmed and cannot shoot. The panel shows exactly that — one slot in
+// each state — so the judge never reads a weapon the game does not have.
+// The old list showed FISTS as a weapon and told a driver to steal a car
+// he was already driving; both are fixed here.
 
 export function createHud() {
   const $ = (id) => document.getElementById(id);
@@ -113,17 +113,17 @@ export function createHud() {
         el.dispatch.style.display = 'none';
         lastDispatch = '';
       }
-      // Weapon wheel: PISTOL on foot, FISTS behind the wheel. The status
-      // line describes the state Dara is actually in — never a hint to do
-      // something he is already doing.
-      const sel = G.player.onFoot ? 1 : 0;
-      if (sel !== lastWeapon) {
-        lastWeapon = sel;
-        el.weapons.innerHTML = WEAPONS.map((name, i) => {
-          return `<div class="weapon-slot${i === sel ? ' sel' : ''}">${name}</div>`;
-        }).join('');
-        el.weaponCurrent.textContent =
-          sel === 1 ? 'PISTOL — 9MM · 3 HITS DISABLES A CRUISER' : 'FISTS — NO GUN BEHIND THE WHEEL';
+      // Weapon/status panel: one slot, and it names the state Dara is
+      // actually in — PISTOL on foot, UNARMED behind the wheel. There is
+      // no second weapon to switch to, so there is no list to pick from.
+      const onFoot = G.player.onFoot;
+      const key = onFoot ? 1 : 0;
+      if (key !== lastWeapon) {
+        lastWeapon = key;
+        el.weapons.innerHTML = `<div class="weapon-slot sel">${onFoot ? 'PISTOL' : 'UNARMED'}</div>`;
+        el.weaponCurrent.textContent = onFoot
+          ? 'PISTOL — 9MM · 3 HITS DISABLES A CRUISER'
+          : 'UNARMED — CANNOT SHOOT WHILE DRIVING';
       }
       el.radio.textContent = G.audio.radioLabel();
       for (let i = toasts.length - 1; i >= 0; i--) {
@@ -172,7 +172,7 @@ export function createHud() {
       el.title.style.display = name === 'title' ? 'flex' : 'none';
       el.pause.style.display = name === 'pause' ? 'flex' : 'none';
       el.over.style.display = name === 'over' ? 'flex' : 'none';
-      // The gameplay HUD (job card, dispatch, weapon wheel, speedo, map)
+      // The gameplay HUD (job card, dispatch, weapon panel, speedo, map)
       // hides under the title / pause / game-over screens, so those screens
       // read clean instead of showing two layers of interface at once.
       el.hudRoot.style.display =

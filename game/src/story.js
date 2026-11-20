@@ -15,7 +15,7 @@ export const DISPATCH_LINES = [
   [], // 0 stars — the panel is hidden
   ['"Unit 12, a 10-50 at the market — keep eyes on the sedan."'],
   ['"All units, suspect is mobile — eastbound on the bay road."'],
-  ['"Roadblock on the north gate — spike strips ready."'],
+  ['"Roadblock on the north gate — cars across the road."'],
   ['"Air One is up — spotlight on the suspect, do not lose visual."'],
   ['"Five stars — every unit in the bay converges on the harbor."'],
 ];
@@ -101,7 +101,7 @@ export const STORY = {
     {
       id: 7,
       title: 'The Debt Collector',
-      briefing: 'Madame Sari: "Someone is collecting from my people. Collect from him first — then run."',
+      briefing: 'Madame Sari: "A pickup is waiting at the East Pier. Grab it and run it to the safehouse — the heat will be on you."',
       pickup: { x: 120, z: 0, label: 'East Pier' },
       drop: { x: -100, z: -92, label: 'Safehouse' },
       time: 125,
