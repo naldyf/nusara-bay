@@ -65,6 +65,30 @@ function addHeadlightGlow(group) {
   return sprites;
 }
 
+// The hero car's rear, lit at dusk: red glow sprites over brighter tail
+// lights, so the car reads from behind — the chase camera's view — instead
+// of a dark box. The tail material is brighter than ordinary cars for the
+// same reason; traffic keeps the dimmer red and flares it only when braking.
+function addRearGlow(group) {
+  const sprites = [];
+  for (const x of [-0.6, 0.6]) {
+    const s = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: getGlowTexture(),
+        color: 0xff4444,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        opacity: 0.7,
+      }),
+    );
+    s.position.set(x, 0.62, -2.2);
+    s.scale.set(1.3, 1.3, 1);
+    group.add(s);
+    sprites.push(s);
+  }
+  return sprites;
+}
+
 export function makeCarMesh(color, police = false, hero = false) {
   const group = new THREE.Group();
   const paint = new THREE.MeshStandardMaterial({
@@ -103,7 +127,7 @@ export function makeCarMesh(color, police = false, hero = false) {
     h.position.set(x, 0.62, 2.06);
     group.add(h);
   }
-  const tailMat = new THREE.MeshBasicMaterial({ color: 0x881111 });
+  const tailMat = new THREE.MeshBasicMaterial({ color: hero ? 0xff3333 : 0x881111 });
   for (const x of [-0.6, 0.6]) {
     const t = new THREE.Mesh(lightGeo, tailMat);
     t.position.set(x, 0.62, -2.06);
@@ -122,6 +146,7 @@ export function makeCarMesh(color, police = false, hero = false) {
   group.userData.tailMat = tailMat;
   group.userData.paint = paint;
   group.userData.heroGlow = hero ? addHeadlightGlow(group) : null;
+  group.userData.heroTailGlow = hero ? addRearGlow(group) : null;
   return group;
 }
 
@@ -138,6 +163,11 @@ export function makeHero(car) {
       for (const s of old.userData.heroGlow) old.remove(s);
       old.userData.heroGlow = null;
     }
+    if (old.userData.heroTailGlow) {
+      for (const s of old.userData.heroTailGlow) old.remove(s);
+      old.userData.heroTailGlow = null;
+    }
+    old.userData.tailMat.color.setHex(0x881111);
     currentHero.hero = false;
   }
   currentHero = car;
@@ -145,6 +175,8 @@ export function makeHero(car) {
   const g = car.mesh;
   g.children[0].material = heroPaint(g.userData.paint.color.getHex());
   g.userData.heroGlow = addHeadlightGlow(g);
+  g.userData.heroTailGlow = addRearGlow(g);
+  g.userData.tailMat.color.setHex(0xff3333);
 }
 
 // One drivable car: position, heading, speed and a sideways slide vector.

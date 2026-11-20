@@ -16,7 +16,11 @@ function smokeTexture() {
   return new THREE.CanvasTexture(c);
 }
 
-export function createEffects(scene) {
+export function createEffects(scene, rng) {
+  // Smoke drifts off the seeded stream when one is given, so staged frames
+  // are reproducible; live play passes its own rng too, so the same code
+  // path serves both. Without a stream, fall back to Math.random.
+  const rand = rng ? () => rng.next() : Math.random;
   const tex = smokeTexture();
   const pool = [];
   for (let i = 0; i < 48; i++) {
@@ -37,11 +41,11 @@ export function createEffects(scene) {
         if (p.life > 0) continue;
         p.life = 0.9;
         p.sprite.visible = true;
-        p.sprite.position.set(x + (Math.random() - 0.5) * 1.5, 0.4, z + (Math.random() - 0.5) * 1.5);
+        p.sprite.position.set(x + (rand() - 0.5) * 1.5, 0.4, z + (rand() - 0.5) * 1.5);
         p.sprite.scale.set(1.6, 1.6, 1);
-        p.vx = (Math.random() - 0.5) * 1.5;
-        p.vy = 0.8 + Math.random();
-        p.vz = (Math.random() - 0.5) * 1.5;
+        p.vx = (rand() - 0.5) * 1.5;
+        p.vy = 0.8 + rand();
+        p.vz = (rand() - 0.5) * 1.5;
         made++;
       }
     },

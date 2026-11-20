@@ -26,6 +26,10 @@ export function loadGame() {
     if (!raw) return null;
     const data = JSON.parse(raw);
     if (typeof data.cash !== 'number' || typeof data.jobIndex !== 'number') return null;
+    // A save from a corrupt or future build must not start a job that does
+    // not exist: the game has 8 jobs (indices 0–7), so anything outside that
+    // range is rejected and the title screen starts fresh instead.
+    if (!Number.isInteger(data.jobIndex) || data.jobIndex < 0 || data.jobIndex > 7) return null;
     return data;
   } catch {
     return null;

@@ -51,8 +51,12 @@ export const SAVE_KEY = 'nusara-bay-save-v1';
 // No hex code for the light lives anywhere else in the scene.
 export const GOLDEN_HOUR = {
   skyZenith: 0x7a5aa8, // purple-blue top of sky
-  skyHorizon: 0xff9a5c, // orange horizon band (== fog colour)
-  fog: 0xf7c9a0, // peach haze — fog MUST equal the horizon colour
+  skyHorizon: 0xff9a5c, // orange horizon band
+  fog: 0xf7c9a0, // peach haze — matches the bottom of the sky gradient, so the
+  // fog and the low sky meet with no visible seam. It is NOT the same value
+  // as skyHorizon: the gradient runs orange at the horizon, then fades into
+  // this peach haze below it. An earlier comment claimed they matched; they
+  // never did, and the look never needed them to.
   sun: 0xffcf8a, // warm key light
   sunIntensity: 3.0,
   hemiSky: 0x9ecbff, // cool blue sky fill

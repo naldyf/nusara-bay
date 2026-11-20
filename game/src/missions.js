@@ -195,7 +195,10 @@ export function createMissions(scene, G) {
       if (this.dropList) {
         G.hud.toast(`DROP 1 OF ${this.dropList.length} — drive!`);
       } else {
-        G.hud.toast('PACKAGE SECURED — drive!');
+        // The pickup line names what was taken: a car for a steal job, a
+        // package for a pickup job. The old text always said "package", so a
+        // steal job's toast described the wrong thing.
+        G.hud.toast(job.steal ? 'CAR SECURED — drive!' : 'PACKAGE SECURED — drive!');
       }
       G.audio.pickup();
     },

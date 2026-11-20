@@ -9,11 +9,14 @@ export function createHelicopter(scene) {
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(2.2, 1.1, 4.2),
     new THREE.MeshStandardMaterial({
-      color: 0x8a8fa0,
+      // A pale fuselage so the helicopter reads against the purple sky
+      // instead of dissolving into it. The old grey (0x8a8fa0) was too dark
+      // at this sun angle; the pale body also carries the red belt and beacon.
+      color: 0xb9c0cc,
       roughness: 0.4,
       metalness: 0.4,
-      emissive: 0x707080,
-      emissiveIntensity: 0.8,
+      emissive: 0x8a8a9a,
+      emissiveIntensity: 1.0,
     }),
   );
   body.castShadow = true;
@@ -40,7 +43,7 @@ export function createHelicopter(scene) {
   group.add(beacon);
   const tail = new THREE.Mesh(
     new THREE.BoxGeometry(0.5, 0.5, 3.4),
-    new THREE.MeshStandardMaterial({ color: 0x8a8fa0, roughness: 0.5 }),
+    new THREE.MeshStandardMaterial({ color: 0xb9c0cc, roughness: 0.5 }),
   );
   tail.position.set(0, 0.2, -3.4);
   group.add(tail);
@@ -125,12 +128,19 @@ export function createHelicopter(scene) {
       const p = G.player.onFoot ? G.player.pos : G.player.car.pos;
       // Hang just ahead of the player, low enough to stay in the chase
       // camera's frame, so the body — not only the beam — is on screen.
+      // The old hover (y 17) put the body above the top of the frame in
+      // both cameras: the chase cam looks down at the car, and the on-foot
+      // cam is lower still, so at 17 the body was out of shot and only the
+      // 26-unit cone showed. At 9 the body sits in the upper third of
+      // either frame, clear of the wanted stars, and the cone still reaches
+      // the ground. Low is also the look: the module's own header says the
+      // helicopter "flies low and close".
       const heading = G.player.onFoot ? G.player.heading : G.player.car.heading;
       const tx = p.x + Math.sin(heading) * 20;
       const tz = p.z + Math.cos(heading) * 20;
       group.position.x += (tx - group.position.x) * Math.min(1, dt * 0.8);
       group.position.z += (tz - group.position.z) * Math.min(1, dt * 0.8);
-      group.position.y = 17 + Math.sin(G.time * 0.7) * 1.5;
+      group.position.y = 9 + Math.sin(G.time * 0.7) * 1.2;
       group.rotation.y = Math.atan2(p.x - group.position.x, p.z - group.position.z);
       rotor.rotation.y += dt * 22;
       beacon.scale.setScalar(1 + 0.35 * Math.sin(G.time * 6));

@@ -6,7 +6,12 @@
 // screenshots, so the objective and the stars are always in plain words.
 import { DISPATCH_LINES } from './story.js';
 
-const WEAPONS = ['FISTS', 'PISTOL', 'SHOTGUN', 'SMG', 'RIFLE'];
+// Only two weapons exist in this game — FISTS on foot is the pistol's
+// neighbour, and driving means fists only. The old list advertised three
+// locked weapons that can never be obtained, and told a driver mid-chase
+// to "steal a car to drive". Both are fixed here: the list is honest, and
+// the status line says what is true in each state.
+const WEAPONS = ['FISTS', 'PISTOL'];
 
 export function createHud() {
   const $ = (id) => document.getElementById(id);
@@ -108,16 +113,17 @@ export function createHud() {
         el.dispatch.style.display = 'none';
         lastDispatch = '';
       }
-      // Weapon wheel: PISTOL on foot, FISTS behind the wheel; the rest are
-      // labelled LOCKED, standard game UI.
+      // Weapon wheel: PISTOL on foot, FISTS behind the wheel. The status
+      // line describes the state Dara is actually in — never a hint to do
+      // something he is already doing.
       const sel = G.player.onFoot ? 1 : 0;
       if (sel !== lastWeapon) {
         lastWeapon = sel;
         el.weapons.innerHTML = WEAPONS.map((name, i) => {
-          const locked = i >= 2;
-          return `<div class="weapon-slot${i === sel ? ' sel' : ''}${locked ? ' locked' : ''}">${name}${locked ? ' · LOCKED' : ''}</div>`;
+          return `<div class="weapon-slot${i === sel ? ' sel' : ''}">${name}</div>`;
         }).join('');
-        el.weaponCurrent.textContent = `${WEAPONS[sel]} — ${sel === 1 ? '9MM · 3 HITS DISABLES A CRUISER' : 'STEAL A CAR TO DRIVE'}`;
+        el.weaponCurrent.textContent =
+          sel === 1 ? 'PISTOL — 9MM · 3 HITS DISABLES A CRUISER' : 'FISTS — NO GUN BEHIND THE WHEEL';
       }
       el.radio.textContent = G.audio.radioLabel();
       for (let i = toasts.length - 1; i >= 0; i--) {

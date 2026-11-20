@@ -59,7 +59,7 @@ streets are there every run:
 - **Old town** — low houses along the canal.
 - **Beach** — sand, palms, and water at the south edge.
 
-Dusk light throughout: a low amber sun, purple fog, streetlights and neon
+Golden-hour light throughout: a low amber sun, peach haze, streetlights and neon
 after dark, and real-time shadows.
 
 ## Systems
@@ -71,8 +71,8 @@ after dark, and real-time shadows.
   spotlight keeps the road readable at dusk.
 - **On foot** — walk the sidewalks, enter any car. Stealing a car sets off
   its alarm and raises the wanted level by one. Your own cars are free.
-- **Traffic** — 14 AI cars follow the road graph, keep their lanes, turn at
-  intersections, and brake for the player. 26 pedestrians stroll the
+- **Traffic** — 18 AI cars follow the road graph, keep their lanes, turn at
+  intersections, and brake for the player. 34 pedestrians stroll the
   sidewalks and scatter from fast cars and police.
 - **Wanted 1–5 stars** — police cruisers chase and ram; at 3 stars they set
   roadblocks; at 4 a helicopter joins with a searchlight. Ram a cruiser
@@ -81,9 +81,9 @@ after dark, and real-time shadows.
 - **Jobs** — pickup → timed drive → drop-off, with a glowing marker in the
   world, a blip on the minimap, and an objective line on the HUD. All eight
   are playable, each with its own twist:
-  1. First Fare — $400 · 2. The Courier — $600 · 3. Lose the Heat — $900
-  (steal the marked gold car, lose 3 stars) · 4. Harbor Heist — $1,200
-  (steal the green crate truck at the container yard) · 5. Night Market
+  1. First Fare — $400 · 2. The Courier — $600 · 3. The Gold Sedan — $900
+  (steal the marked gold sedan, get it to the safehouse) · 4. Dockside
+  Lift — $1,200 (lift the green car at the container yard) · 5. Night Market
   Run — $1,400 (three drops across the city, one clock per leg) ·
   6. The Rival — $1,600 (race Viko to the North Gate — he drives the same
   route, and the minimap shows him as a pink dot) · 7. The Debt
@@ -109,13 +109,14 @@ The four frames in `screenshots/` are real renders of the game, taken in
 headless Chrome from deterministic stagings (`?shot=chase|steal|harbor|start`
 with a fixed seed — see `game/src/shots.js`):
 
-1. `chase.jpg` — the cover: a 4-star chase downtown, the helicopter body
-   with its red stripe overhead, Job 3 on the clock.
+1. `chase.jpg` — the cover: a 4-star chase downtown — the hero car in the
+   foreground, two cruisers flanking, the whole helicopter clear of the
+   wanted stars, Job 3 on the clock.
 2. `steal.jpg` — Dara on foot in the night market, about to steal a car.
-3. `harbor.jpg` — Job 3 at the container yard, gold getaway car clear of
-   the palms, safehouse toast.
+3. `harbor.jpg` — Job 8, the five-star finale at the dock: Dara on foot,
+   the gold car, gantry crane, containers, water, and a cruiser closing in.
 4. `start.jpg` — the title screen over the city, with the job list — all
-   eight jobs open.
+   eight jobs listed, upcoming ones marked UPCOMING.
 
 ## Layout
 

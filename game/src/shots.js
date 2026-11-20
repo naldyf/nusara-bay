@@ -2,6 +2,12 @@
 // in a chosen state and drives it forward with a scripted autopilot — the
 // frames are genuine gameplay, not a posed diorama. When the scene is ready
 // the autopilot returns true and main.js sets window.__shotReady.
+//
+// Staging rules the cover taught us: the camera is a chase cam behind the
+// player, so anything staged dead-centre ahead hides behind the wanted
+// stars, and anything at the frame edge reads as traffic. Police and the
+// helicopter go off-centre and close, never centred and far. Nothing here
+// fakes a state the game cannot reach — no staged toasts, no posed saves.
 import { STORY } from './story.js';
 import { createCar } from './vehicles.js';
 
@@ -9,7 +15,7 @@ function jobListHtml(G) {
   return STORY.jobs
     .map((job) => {
       const cls = job.id <= G.jobsDone ? 'done' : job.id === G.jobsDone + 1 ? 'next' : 'locked';
-      const state = job.id <= G.jobsDone ? 'DONE' : job.id === G.jobsDone + 1 ? 'NEXT' : 'OPEN';
+      const state = job.id <= G.jobsDone ? 'DONE' : job.id === G.jobsDone + 1 ? 'NEXT' : 'UPCOMING';
       return `<div class="${cls}">JOB ${job.id} — ${job.title} · $${job.pay} · ${state}</div>`;
     })
     .join('');
@@ -19,46 +25,68 @@ export function stageShot(G, name, seed) {
   const input = G.input;
   let t = 0;
   if (name === 'chase') {
-    // Cover: Dara mid-drift downtown, 4 wanted stars, cruisers behind,
-    // helicopter overhead, Job 3 on the clock, minimap full of blips.
+    // Cover: Dara mid-chase downtown at 4 stars. The hero car is the
+    // subject, two cruisers flank close alongside it with their light bars
+    // flashing (inside the frame, not at the edges where they read as
+    // traffic), and the helicopter hangs ahead and to the side, low enough
+    // to sit clear of the wanted stars. Job 3 on the clock.
+    //
+    // The cruisers and the helicopter are PINNED to the player car every
+    // frame by the autopilot below, the same way the helicopter already
+    // was: the pursuit AI would otherwise park them behind the camera or
+    // dead-centre ahead, where the cover cannot show them. Pinning chooses
+    // the moment of a real chase; it does not fake a state the game cannot
+    // reach. The briefing dialogue is deliberately NOT shown here — its
+    // panel sat across the middle of the frame, hiding the cruisers.
     const car = createCar(G.scene, 0, 24, Math.PI, 0xc94f4f, false, true);
     G.player.getIn(car, G);
     car.speed = 22;
     G.police.wanted = 4;
-    // Two cruisers flanking behind the player, in frame for the cover.
     const c1 = G.police.spawnCruiser(G);
-    c1.pos.x = 7;
-    c1.pos.z = 32;
-    c1.heading = Math.PI;
-    c1.speed = 24;
     const c2 = G.police.spawnCruiser(G);
-    c2.pos.x = -8;
-    c2.pos.z = 35;
-    c2.heading = Math.PI;
-    c2.speed = 24;
     G.missions.jobIndex = 2;
     G.missions.phase = 'deliver';
     G.missions.timer = 72;
-    G.missions.objective = 'JOB 3: LOSE THE HEAT — get to the safehouse';
     G.missions.placeMarker(-100, -92);
     G.minimap.setObjective(-100, -92);
-    G.cash = 1240;
-    let storyShown = false;
+    G.cash = 1250;
     return (dt) => {
       t += dt;
       input.fake('KeyW', true);
-      // The briefing fades on a wall-clock timer, so trigger it just before
-      // the frame is captured — otherwise it is gone by the time the slow
-      // headless renderer reaches the ready point.
-      if (t > 2.8 && !storyShown) {
-        storyShown = true;
-        G.hud.setStory(STORY.jobs[2].briefing);
-      }
-      // Keep the helicopter pinned just ahead of the car, low and in frame,
-      // so the cover shows the body and its red stripe — not only the beam.
       const p = G.player.car.pos;
       const h = G.player.car.heading;
-      G.heli.mesh.position.set(p.x + Math.sin(h) * 16, 14, p.z + Math.cos(h) * 16);
+      const fx = Math.sin(h);
+      const fz = Math.cos(h);
+      // Screen-right of the car, same formula the helicopter pin uses.
+      const rx = -Math.cos(h);
+      const rz = Math.sin(h);
+      // Flank the car: one cruiser right and slightly ahead, one left and
+      // slightly ahead, both pointing the same way — a chase, not traffic.
+      const flank = [
+        [c1, 5, 5.5],
+        [c2, 3, -5.5],
+      ];
+      for (const [c, ahead, side] of flank) {
+        const x = p.x + fx * ahead + rx * side;
+        const z = p.z + fz * ahead + rz * side;
+        c.pos.x = x;
+        c.pos.z = z;
+        c.heading = h;
+        c.speed = 22;
+        c.mesh.position.set(x, 0, z);
+        c.mesh.rotation.y = h;
+      }
+      // Pin the helicopter ahead and to the right, low enough to sit below
+      // the wanted stars — the old pin (12 ahead, y 10.5) put its body
+      // above the top of the frame, so the cover showed a beam and no
+      // aircraft. The pin matches the helicopter's own hover height (y 9),
+      // so the body stays put when the pin stops at capture time instead of
+      // snapping back up to a hover the camera cannot see.
+      G.heli.mesh.position.set(
+        p.x + Math.sin(h) * 10 - Math.cos(h) * 6,
+        9,
+        p.z + Math.cos(h) * 10 + Math.sin(h) * 6,
+      );
       return t > 3.2;
     };
   }
@@ -80,30 +108,51 @@ export function stageShot(G, name, seed) {
     };
   }
   if (name === 'harbor') {
-    // Job 3 in progress at the container yard: Dara on foot facing south,
-    // pistol out, the gold getaway car ahead on open dock, cranes and the
-    // water behind it, the safehouse toast still showing. The car sits in
-    // the clear lane between the container stacks (x -70, z 100) so nothing
-    // crosses it.
-    const car = createCar(G.scene, -70, 100, Math.PI / 2, 0xd9a527, false, true);
+    // The five-star finale (Job 8) at the dock: Dara on foot in the container
+    // yard, the gold getaway car ahead with the teal water behind it, a
+    // gantry crane to the side, a cruiser sweeping past, and the helicopter
+    // overhead. A real gameplay state — Job 8 in its deliver phase at five
+    // stars — with no staged toast and no posed save. The gold car sits
+    // close in front of Dara, so the mid-ground is the getaway car and not
+    // empty dock.
+    const car = createCar(G.scene, -64, 114, Math.PI / 2, 0xd9a527, false, true);
     car.parked = true;
     G.parked.push(car);
     G.player.pos.x = -70;
-    G.player.pos.z = 93;
+    G.player.pos.z = 106;
     G.player.heading = 0;
-    G.player.mesh.position.set(-70, 0, 93);
-    G.police.wanted = 2;
-    G.missions.jobIndex = 2;
+    G.player.mesh.position.set(-70, 0, 106);
+    G.police.wanted = 5;
+    // One cruiser sweeping east along the dock's south edge, in frame.
+    const c1 = G.police.spawnCruiser(G);
+    c1.pos.x = -100;
+    c1.pos.z = 126;
+    c1.heading = Math.PI / 2;
+    c1.speed = 20;
+    G.missions.jobIndex = 7;
     G.missions.phase = 'deliver';
-    G.missions.timer = 60;
-    G.missions.objective = 'JOB 3: LOSE THE HEAT — get to the safehouse — 1:00';
-    G.missions.placeMarker(-100, -92);
-    G.minimap.setObjective(-100, -92);
-    G.cash = 2140;
-    G.hud.toast('PROGRESS SAVED — safehouse');
+    G.missions.timer = 96;
+    G.missions.placeMarker(80, 104);
+    G.minimap.setObjective(80, 104);
+    G.cash = 8150;
     return (dt) => {
       t += dt;
-      return t > 2.6;
+      // Pin the helicopter ahead and to the right of Dara, low enough to
+      // clear the wanted stars — the old pin (14 ahead, y 9) put its body
+      // at the very top edge, the rotor clipped by the frame. The on-foot
+      // camera sits lower and closer than the chase cam, so the same height
+      // reads higher here: 16 ahead and y 8 puts the whole aircraft,
+      // rotor disc included, in the upper third. Same rule as the cover,
+      // and the pin is close to the helicopter's own hover height (y 9), so
+      // the body barely moves when the pin stops at capture time.
+      const p = G.player.pos;
+      const h = G.player.heading;
+      G.heli.mesh.position.set(
+        p.x + Math.sin(h) * 16 - Math.cos(h) * 6,
+        8,
+        p.z + Math.cos(h) * 16 + Math.sin(h) * 6,
+      );
+      return t > 2.8;
     };
   }
   if (name === 'start') {

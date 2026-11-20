@@ -7,7 +7,7 @@ import { collideCircle, clampToWorld } from './city.js';
 import { ACTION_ENTER } from './input.js';
 import { makeHero } from './vehicles.js';
 
-export function makePersonMesh(jacket = 0xe8a13a, skin = 0xc98a5f) {
+export function makePersonMesh(jacket = 0xe8a13a, skin = 0xc98a5f, kit = false) {
   const group = new THREE.Group();
   const torso = new THREE.Mesh(
     new THREE.BoxGeometry(0.55, 0.7, 0.32),
@@ -23,6 +23,29 @@ export function makePersonMesh(jacket = 0xe8a13a, skin = 0xc98a5f) {
   head.position.y = 1.62;
   head.castShadow = true;
   group.add(head);
+  // Dara's kit — a cyan cap and a dark backpack — so he reads as a person
+  // from behind instead of merging with the car beside him. Pedestrians
+  // keep the plain build; only Dara carries the kit.
+  if (kit) {
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.24, 0.26, 0.12, 10),
+      new THREE.MeshStandardMaterial({ color: 0x7cffef, roughness: 0.7 }),
+    );
+    cap.position.y = 1.84;
+    group.add(cap);
+    const brim = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 0.04, 0.2),
+      new THREE.MeshStandardMaterial({ color: 0x7cffef, roughness: 0.7 }),
+    );
+    brim.position.set(0, 1.8, 0.26);
+    group.add(brim);
+    const pack = new THREE.Mesh(
+      new THREE.BoxGeometry(0.34, 0.44, 0.16),
+      new THREE.MeshStandardMaterial({ color: 0x2e4a5a, roughness: 0.9 }),
+    );
+    pack.position.set(0, 1.08, -0.24);
+    group.add(pack);
+  }
   const legs = [];
   const legMat = new THREE.MeshStandardMaterial({ color: 0x2a2a33, roughness: 1 });
   for (const x of [-0.14, 0.14]) {
@@ -43,7 +66,7 @@ export function makePersonMesh(jacket = 0xe8a13a, skin = 0xc98a5f) {
 }
 
 export function createPlayer(scene, x, z) {
-  const mesh = makePersonMesh();
+  const mesh = makePersonMesh(0xe8a13a, 0xc98a5f, true);
   scene.add(mesh);
   const player = {
     mesh,

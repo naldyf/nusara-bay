@@ -4,7 +4,10 @@ import { PEDS } from './config.js';
 import { makePersonMesh } from './player.js';
 import { clampToWorld } from './city.js';
 
-const JACKETS = [0xc94f4f, 0x4f7ec9, 0xd9c24f, 0x7a4fc9, 0x4fc97a, 0xe8e8e8, 0x333338, 0x2e8a7a, 0xe8a13a];
+// Pedestrian jackets. Dara's amber (0xe8a13a) is deliberately NOT here —
+// Dara must be the only amber jacket in any frame, so the player always
+// reads as the player in a crowd.
+const JACKETS = [0xc94f4f, 0x4f7ec9, 0xd9c24f, 0x7a4fc9, 0x4fc97a, 0xe8e8e8, 0x333338, 0x2e8a7a];
 
 function sidewalkPoint(rng, city) {
   const street = rng.pick(city.streets);

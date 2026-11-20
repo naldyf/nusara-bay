@@ -61,10 +61,14 @@ export function createCombat(scene, G) {
         best.health -= 1;
         G.effects.spawnSmoke(best.pos.x, best.pos.z, 6);
         if (best.health <= 0) G.police.disableCruiser(best, G);
-        if (wantedCooldown <= 0) {
-          G.police.addWanted(1, 'WANTED — SHOTS FIRED');
-          wantedCooldown = 5;
-        }
+      }
+      // A gunshot is heard whether or not it lands: firing always raises the
+      // heat, throttled so one burst is one star. The old code only raised
+      // wanted on a hit, so a player could empty a clip at a cruiser from
+      // just out of range and stay CLEAN.
+      if (wantedCooldown <= 0) {
+        G.police.addWanted(1, 'WANTED — SHOTS FIRED');
+        wantedCooldown = 5;
       }
       const len = from.distanceTo(to);
       const tracer = new THREE.Mesh(tracerGeo, tracerMat.clone());

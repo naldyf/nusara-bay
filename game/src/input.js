@@ -37,6 +37,13 @@ export function createInput() {
   }
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
+  // Losing the window (alt-tab, click out) must not leave a key stuck down:
+  // clear everything, so the car cannot drive itself when focus returns.
+  window.addEventListener('blur', () => {
+    keys.clear();
+    pressed.clear();
+    mousePressed = false;
+  });
   window.addEventListener('mousedown', () => {
     mouseDown = true;
     mousePressed = true;

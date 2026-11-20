@@ -27,6 +27,9 @@ export function createPolice(scene, rng, city) {
       const cruiser = createCar(scene, x, z, a, 0x1a1a22, true);
       cruiser.health = 3;
       cruiser.ramCooldown = 0;
+    cruiser.flashPhase = this.cruisers.length % 2; // alternate the light-bar
+    // flash so two cruisers never blink in perfect sync — the bar reads as
+    // separate vehicles, not one light copied twice.
       this.cruisers.push(cruiser);
       return cruiser;
     },
@@ -111,7 +114,7 @@ export function createPolice(scene, rng, city) {
         c.sync();
         // Flash the light bar red/blue.
         const bar = c.mesh.userData.lightBar;
-        if (bar) bar.material.emissive.setHex(Math.floor(G.time * 6) % 2 ? 0xff2222 : 0x2244ff);
+        if (bar) bar.material.emissive.setHex(Math.floor(G.time * 6 + (c.flashPhase || 0)) % 2 ? 0xff2222 : 0x2244ff);
         // Ram: shove the player's car and hurt them.
         if (dist < 4.2 && c.ramCooldown <= 0) {
           c.ramCooldown = 1.2;

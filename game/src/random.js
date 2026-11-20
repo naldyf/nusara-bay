@@ -24,5 +24,11 @@ export function createRandom(seed) {
     jitter(value, amount) {
       return value + (this.next() - 0.5) * 2 * amount;
     },
+    // True with probability p — a coin flip off the same seeded stream, so a
+    // call site reads as intent ("a coin flip") instead of a bare comparison
+    // against next(), and it consumes exactly one stream value either way.
+    bool(p = 0.5) {
+      return this.next() < p;
+    },
   };
 }

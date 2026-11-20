@@ -5,9 +5,11 @@
 //
 // Iteration 3 re-lights everything: the dusk-purple of v2 is gone. The sky is
 // a canvas gradient (violet zenith -> pink -> orange horizon -> peach haze),
-// the fog is FogExp2 in the exact horizon colour so the far skyline dissolves
-// into haze, and the sun sits low in the north-west (~19 degrees) throwing
-// long shadows down the boulevards. Buildings are instanced per material —
+// the fog is FogExp2 in the peach haze colour the sky gradient fades into
+// at the bottom — not the orange horizon band itself — so the far skyline
+// dissolves into haze, and the sun sits low in the north-west (~19 degrees)
+// throwing long shadows down the boulevards. Buildings are instanced per
+// material —
 // one draw call per archetype instead of one per building — with per-archetype
 // lit-window emissive textures and rooftop clutter.
 import * as THREE from 'three';
@@ -424,7 +426,7 @@ export function buildCity(scene, rng) {
           rng.range(0, Math.PI),
         );
       }
-      if (rng.next() < 0.5) {
+      if (rng.bool()) {
         const ah = rng.range(4, 7);
         pushInstance(
           antennaCyls,
@@ -434,7 +436,7 @@ export function buildCity(scene, rng) {
           0.12, ah, 0.12,
         );
       }
-      if (rng.next() < 0.3) {
+      if (rng.bool(0.3)) {
         pushInstance(
           tankCyls,
           cx + rng.jitter(0, topW / 2 - 2),
@@ -461,7 +463,7 @@ export function buildCity(scene, rng) {
       const bd = z1 - z0;
       if (Math.abs(cx) < 62 && Math.abs(cz) < 62) {
         // Downtown: one or two towers per block, in three archetypes.
-        const n = rng.next() < 0.5 ? 1 : 2;
+        const n = rng.bool() ? 1 : 2;
         for (let k = 0; k < n; k++) {
           const bx = cx + (n === 1 ? 0 : (k === 0 ? -1 : 1) * (bw / 4));
           const bz = cz + (n === 1 ? 0 : (k === 0 ? -1 : 1) * (bd / 4));

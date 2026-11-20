@@ -102,7 +102,7 @@ const G = {
     });
   },
 };
-G.effects = createEffects(scene);
+G.effects = createEffects(scene, rng); // smoke off the seeded stream, so staged frames are reproducible
 G.hud = createHud();
 G.minimap = createMinimap(document.getElementById('minimap'), city);
 G.player = createPlayer(scene, city.spawn.market.x, city.spawn.market.z);
@@ -120,7 +120,7 @@ function jobListHtml() {
   return STORY.jobs
     .map((job) => {
       const cls = job.id <= G.jobsDone ? 'done' : job.id === G.jobsDone + 1 ? 'next' : 'locked';
-      const state = job.id <= G.jobsDone ? 'DONE' : job.id === G.jobsDone + 1 ? 'NEXT' : 'OPEN';
+      const state = job.id <= G.jobsDone ? 'DONE' : job.id === G.jobsDone + 1 ? 'NEXT' : 'UPCOMING';
       return `<div class="${cls}">JOB ${job.id} — ${job.title} · $${job.pay} · ${state}</div>`;
     })
     .join('');
@@ -335,6 +335,13 @@ function frame(now) {
         renderer.render(scene, camera);
         window.__shotReady = true;
       }
+    } else if (autopilot) {
+      // Keep the staging pinned after the frame is ready: the screenshot is
+      // taken a moment later, and without this the pursuit AI closes in —
+      // the cruisers pile onto the player car and the helicopter drifts back
+      // up to its hover — before the shutter. The return value is ignored
+      // here; __shotReady already fired once.
+      autopilot(STEP);
     }
   }
   updateCamera(frameDt);

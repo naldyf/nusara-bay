@@ -187,6 +187,10 @@ export function createAudio() {
       if (!ensure()) return false;
       // M cycles: off → BAY FM → DUSK FM → off.
       station = station + 1 > 1 ? -1 : station + 1;
+      // A new station starts on its first track, not wherever the previous
+      // station left the playlist — otherwise a station change mid-tune
+      // lands the listener in the middle of an unrelated chord.
+      if (station >= 0) chordStep = 0;
       if (station >= 0 && !radioTimer) radioTimer = setInterval(playChord, 2000);
       if (station < 0 && radioTimer) {
         clearInterval(radioTimer);

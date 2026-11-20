@@ -45,8 +45,8 @@ export const STORY = {
     },
     {
       id: 3,
-      title: 'Lose the Heat',
-      briefing: 'Madame Sari: "That gold sedan downtown is marked. Take it, lose the heat, and get to the safehouse alive."',
+      title: 'The Gold Sedan',
+      briefing: 'Madame Sari: "That gold sedan downtown is marked. Take it and get to the safehouse alive."',
       pickup: { x: 40, z: 40, label: 'Gold Sedan — Downtown' },
       drop: { x: -100, z: -92, label: 'Safehouse' },
       time: 130,
@@ -57,8 +57,8 @@ export const STORY = {
     },
     {
       id: 4,
-      title: 'Harbor Heist',
-      briefing: 'Madame Sari: "Containers at the dock hold more than fish. Lift the crate truck, lose the cruisers."',
+      title: 'Dockside Lift',
+      briefing: 'Madame Sari: "Containers at the dock hold more than fish. Lift the green car, lose the cruisers."',
       pickup: { x: -140, z: 100, label: 'Container Yard' },
       drop: { x: 100, z: -40, label: 'Old Town Garage' },
       time: 110,
@@ -85,7 +85,7 @@ export const STORY = {
     {
       id: 6,
       title: 'The Rival',
-      briefing: 'Madame Sari: "Viko thinks he is the fastest wheel in the bay. Prove him wrong — and take his car."',
+      briefing: 'Madame Sari: "Viko thinks he is the fastest wheel in the bay. Prove him wrong on the Beachfront Strip."',
       pickup: { x: 0, z: 80, label: 'Beachfront Strip' },
       drop: { x: -40, z: -120, label: 'North Gate' },
       time: 95,

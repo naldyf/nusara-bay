@@ -28,7 +28,14 @@ export function createTraffic(scene, rng, city) {
   for (let i = 0; i < TRAFFIC.count; i++) spawnOne();
 
   return {
-    cars: cars.map((t) => t.car),
+    // The exposed list is a live view, not a snapshot: removeCar splices the
+    // internal array, and readers (player.js nearestCar, tryEnterCar) must
+    // see the current cars. The old code took cars.map(...) once at
+    // construction, so a stolen traffic car stayed stealable forever and a
+    // freshly spawned one never was.
+    get cars() {
+      return cars.map((t) => t.car);
+    },
     removeCar(car) {
       const i = cars.findIndex((t) => t.car === car);
       if (i >= 0) cars.splice(i, 1);

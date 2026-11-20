@@ -1,23 +1,24 @@
-// Nusara Bay — the entry packer for the gta6-01 bounty (Node 22, stdlib only).
+// Nusara Bay — entry packer for the gta6-01 bounty (Node 22, stdlib only).
 //
-// The game is plain static files: index.html and its ES modules under game/,
-// three.js vendored as minified files under game/vendor/, and nothing that
-// reaches the network while it runs. This program's only job is to gather
-// game/ and screenshots/ from this repository into the output directory the
-// grader reads, and to write the dossier the judge reads (dossier.json)
-// using the kit's own library, vendor/makefun-game.ts, which is kept
-// byte-identical to the kit copy.
+// What the entry actually is: plain static files. index.html plus its ES
+// modules under game/, three.js vendored as minified files under
+// game/vendor/, and nothing that reaches the network while it runs. This
+// program does not build or bundle anything — it gathers game/ and
+// screenshots/ from this repository into the output directory the grader
+// reads, then writes the dossier the judge reads (dossier.json) with the
+// kit's own library, vendor/makefun-game.ts, which is kept byte-identical
+// to the kit copy.
 //
 // How the grader runs it:
 //   node main.ts
 // To try it somewhere harmless instead of /output:
 //   MAKEFUN_OUTPUT_DIR=out node main.ts
 //
-// The caps are the bounty's own gate limits (see the kit's gate.json): the
+// The caps below are the bounty's own gate limits (kit's gate.json): the
 // dossier text is capped at 160 KiB, at most 4 screenshots of at most
 // 256 KiB each, and game/ at most 993 entries and 48 MiB. This program
-// fails exactly where the sealed scorer would refuse the entry, so a clean
-// run here means the entry is hand-in shaped.
+// refuses exactly where the sealed scorer would refuse the entry, so a
+// clean run here means the entry is hand-in shaped.
 
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -46,9 +47,10 @@ function freshDir(dir) {
   mkdirSync(dir, { recursive: true });
 }
 
-// Copy one directory tree, game/ or screenshots/, into the output. game/
-// must be there — an entry with no game is not an entry, and failing here
-// is better than handing the scorer an empty one.
+// Copy one directory tree — game/ or screenshots/ — into the output. game/
+// must be there: an entry with no game is not an entry, and failing here is
+// better than handing the scorer an empty one. screenshots/ is optional;
+// an entry without shots is legal, just weaker.
 function carry(name, required) {
   const from = join(repoRoot, name);
   const to = join(outDir, name);
