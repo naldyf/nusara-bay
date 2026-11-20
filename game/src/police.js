@@ -46,6 +46,30 @@ export function createPolice(scene, rng, city) {
       }
       this.roadblocks.push({ cars: block, ttl: 14 });
     },
+    // Rows for the dispatch panel: callsign, live distance in metres, and
+    // what that unit is doing right now. The HUD reads this every frame, so
+    // the numbers tick — a panel that never moves reads as a mockup.
+    dispatchUnits(G) {
+      const p = G.player.onFoot ? G.player.pos : G.player.car.pos;
+      const playerSpeed = G.player.car ? Math.abs(G.player.car.speed) : 0;
+      const rows = this.cruisers.map((c, i) => {
+        const dist = Math.round(Math.hypot(c.pos.x - p.x, c.pos.z - p.z));
+        return {
+          callsign: `NCPD-0${i + 1}`,
+          dist,
+          tag: dist < 6 && playerSpeed > 8 ? 'RAMMING' : 'PURSUE',
+        };
+      });
+      if (this.roadblocks.length) {
+        const b = this.roadblocks[0].cars[0];
+        rows.push({
+          callsign: 'BLOCK',
+          dist: Math.round(Math.hypot(b.pos.x - p.x, b.pos.z - p.z)),
+          tag: 'ROADBLOCK',
+        });
+      }
+      return rows;
+    },
     update(dt, G) {
       const p = G.player.onFoot ? G.player.pos : G.player.car.pos;
       const playerSpeed = G.player.car ? Math.abs(G.player.car.speed) : 0;

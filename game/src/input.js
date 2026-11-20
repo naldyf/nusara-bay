@@ -69,6 +69,13 @@ export function createInput() {
       pressed.clear();
       mousePressed = false;
     },
+    // Empty every held key and pending action — used on pause/resume so a
+    // key held through the pause cannot stick the car in a turn.
+    clear() {
+      keys.clear();
+      pressed.clear();
+      mousePressed = false;
+    },
     // Test/autopilot hook: pretend a key is held.
     fake(code, down) {
       if (down) keys.add(code);

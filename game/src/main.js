@@ -4,7 +4,7 @@
 // which stages a scene deterministically for a screenshot and sets
 // window.__shotReady when the frame is ready to capture.
 import * as THREE from 'three';
-import { WORLD, CAR, PLAYER } from './config.js';
+import { WORLD, CAR, PLAYER, GOLDEN_HOUR } from './config.js';
 import { createRandom } from './random.js';
 import { createInput, ACTION_ENTER, ACTION_CONFIRM, ACTION_PAUSE, ACTION_RADIO } from './input.js';
 import { buildCity, cameraClear } from './city.js';
@@ -40,10 +40,10 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
+renderer.toneMappingExposure = GOLDEN_HOUR.exposure;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.1, 600);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 600);
 camera.position.set(60, 40, 90);
 
 const rng = createRandom(seed);
@@ -106,7 +106,7 @@ G.effects = createEffects(scene);
 G.hud = createHud();
 G.minimap = createMinimap(document.getElementById('minimap'), city);
 G.player = createPlayer(scene, city.spawn.market.x, city.spawn.market.z);
-G.parked = spawnParkedCars(scene, rng, city, 10);
+G.parked = spawnParkedCars(scene, rng, city, 12);
 G.traffic = createTraffic(scene, rng, city);
 G.peds = createPedestrians(scene, rng, city);
 G.police = createPolice(scene, rng, city);
@@ -128,14 +128,16 @@ function jobListHtml() {
 function showTitle() {
   G.screen = 'title';
   const save = loadGame();
+  // The continue line carries when the save was made, so a returning player
+  // can tell the save is theirs and how fresh it is.
+  const saveTime = save?.savedAt
+    ? `${new Date(save.savedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} · JOB ${save.jobIndex + 1} · $${Math.floor(save.cash).toLocaleString('en-US')}`
+    : null;
   G.hud.showScreen('title', {
     joblist: jobListHtml(),
     hasSave: !!save,
+    saveTime,
   });
-  if (save) {
-    document.getElementById('continue-line').textContent =
-      `CONTINUE — Job ${save.jobIndex + 1}, $${Math.floor(save.cash).toLocaleString('en-US')} — press ENTER`;
-  }
 }
 function startGame() {
   const save = loadGame();
@@ -215,7 +217,7 @@ function updateCamera(dt) {
     pullInFrom(p.x, p.z, want);
     camera.position.lerp(want, Math.min(1, dt * 4.5));
     camTarget.set(p.x + fx * 12, 1.6, p.z + fz * 12);
-    camera.fov = 68 + Math.min(10, speed * 0.35) + (input.run() ? 3 : 0);
+    camera.fov = 60 + Math.min(10, speed * 0.35) + (input.run() ? 3 : 0);
     camera.updateProjectionMatrix();
     headlight.visible = true;
     headlight.position.set(p.x + fx * 2, 1.1, p.z + fz * 2);
@@ -279,6 +281,7 @@ function step(dt) {
     G.peds.update(dt, G);
   }
   G.effects.update(dt);
+  if (G.city.updateAtmosphere) G.city.updateAtmosphere(dt);
   if (input.action(ACTION_RADIO)) G.audio.toggleRadio();
   input.endFrame();
 }
@@ -297,9 +300,11 @@ window.addEventListener('keydown', (e) => {
   else if (e.code === 'Enter' && G.screen === 'over') window.location.reload();
   else if (e.code === 'Escape' && G.screen === 'play') {
     G.screen = 'pause';
+    input.clear();
     G.hud.showScreen('pause');
   } else if (e.code === 'Escape' && G.screen === 'pause') {
     G.screen = 'play';
+    input.clear();
     G.hud.showScreen('play');
   }
 });

@@ -5,8 +5,9 @@ import * as THREE from 'three';
 import { FOOT, CAR } from './config.js';
 import { collideCircle, clampToWorld } from './city.js';
 import { ACTION_ENTER } from './input.js';
+import { makeHero } from './vehicles.js';
 
-export function makePersonMesh(jacket = 0x2e8a7a, skin = 0xc98a5f) {
+export function makePersonMesh(jacket = 0xe8a13a, skin = 0xc98a5f) {
   const group = new THREE.Group();
   const torso = new THREE.Mesh(
     new THREE.BoxGeometry(0.55, 0.7, 0.32),
@@ -115,6 +116,10 @@ export function createPlayer(scene, x, z) {
       this.car = car;
       this.onFoot = false;
       this.mesh.visible = false;
+      // Whatever Dara just got into becomes the hero car — clearcoat paint
+      // and headlight glow, so the camera's subject is always the shiniest
+      // car in the frame.
+      makeHero(car);
       G.audio.engineStart();
     },
     // Step out beside the car, only when it is (almost) stopped.

@@ -1,6 +1,12 @@
 // Cars: a boxy low-poly build from shared geometry, and arcade handling.
 // No physics engine — speed, steering and slide are integrated by hand, which
 // keeps the code small, fully authored, and deterministic for screenshots.
+//
+// Iteration 3: the player's current car is the HERO car — clearcoat paint
+// (MeshPhysicalMaterial) so the low sun rolls a highlight down the body, plus
+// additive headlight glow sprites. Any car Dara steals becomes the hero car;
+// the previous one drops back to ordinary paint. Traffic brake lights are
+// wired through userData.tailMat so traffic.js can flare them when braking.
 import * as THREE from 'three';
 import { CAR } from './config.js';
 import { collideCircle, clampToWorld } from './city.js';
@@ -10,14 +16,63 @@ const cabinGeo = new THREE.BoxGeometry(1.6, 0.55, 2.0);
 const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.3, 10);
 const lightGeo = new THREE.BoxGeometry(0.32, 0.16, 0.08);
 
-export function makeCarMesh(color, police = false) {
+let glowTex = null;
+function getGlowTexture() {
+  if (glowTex) return glowTex;
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 2, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,246,216,1)');
+  grad.addColorStop(0.4, 'rgba(255,217,160,0.7)');
+  grad.addColorStop(1, 'rgba(255,196,107,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  glowTex = new THREE.CanvasTexture(c);
+  glowTex.colorSpace = THREE.SRGBColorSpace;
+  return glowTex;
+}
+
+// Clearcoat paint for the hero car: a hard lacquer coat over the colour, so
+// the golden-hour sun draws a long highlight along the body.
+function heroPaint(color) {
+  return new THREE.MeshPhysicalMaterial({
+    color,
+    roughness: 0.25,
+    metalness: 0.8,
+    clearcoat: 1,
+    clearcoatRoughness: 0.08,
+  });
+}
+
+function addHeadlightGlow(group) {
+  const sprites = [];
+  for (const x of [-0.6, 0.6]) {
+    const s = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: getGlowTexture(),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        opacity: 0.6,
+      }),
+    );
+    s.position.set(x, 0.62, 2.2);
+    s.scale.set(1.3, 1.3, 1);
+    group.add(s);
+    sprites.push(s);
+  }
+  return sprites;
+}
+
+export function makeCarMesh(color, police = false, hero = false) {
   const group = new THREE.Group();
   const paint = new THREE.MeshStandardMaterial({
     color,
     roughness: 0.35,
     metalness: 0.6,
   });
-  const body = new THREE.Mesh(bodyGeo, paint);
+  const body = new THREE.Mesh(bodyGeo, hero ? heroPaint(color) : paint);
   body.position.y = 0.55;
   body.castShadow = true;
   group.add(body);
@@ -48,7 +103,7 @@ export function makeCarMesh(color, police = false) {
     h.position.set(x, 0.62, 2.06);
     group.add(h);
   }
-  const tailMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+  const tailMat = new THREE.MeshBasicMaterial({ color: 0x881111 });
   for (const x of [-0.6, 0.6]) {
     const t = new THREE.Mesh(lightGeo, tailMat);
     t.position.set(x, 0.62, -2.06);
@@ -64,16 +119,42 @@ export function makeCarMesh(color, police = false) {
     group.userData.lightBar = bar;
   }
   group.userData.wheels = wheels;
+  group.userData.tailMat = tailMat;
+  group.userData.paint = paint;
+  group.userData.heroGlow = hero ? addHeadlightGlow(group) : null;
   return group;
 }
 
+// The hero car: one car at a time carries the clearcoat + glow treatment.
+// Stealing a car promotes it and demotes the old one — the camera's subject
+// is always the shiniest thing in the frame.
+let currentHero = null;
+export function makeHero(car) {
+  if (currentHero === car) return;
+  if (currentHero) {
+    const old = currentHero.mesh;
+    old.children[0].material = old.userData.paint;
+    if (old.userData.heroGlow) {
+      for (const s of old.userData.heroGlow) old.remove(s);
+      old.userData.heroGlow = null;
+    }
+    currentHero.hero = false;
+  }
+  currentHero = car;
+  car.hero = true;
+  const g = car.mesh;
+  g.children[0].material = heroPaint(g.userData.paint.color.getHex());
+  g.userData.heroGlow = addHeadlightGlow(g);
+}
+
 // One drivable car: position, heading, speed and a sideways slide vector.
-export function createCar(scene, x, z, heading, color, police = false) {
-  const mesh = makeCarMesh(color, police);
+export function createCar(scene, x, z, heading, color, police = false, hero = false) {
+  const mesh = makeCarMesh(color, police, hero);
   scene.add(mesh);
   const car = {
     mesh,
     police,
+    hero,
     pos: { x, z },
     heading,
     speed: 0,
@@ -124,9 +205,11 @@ export function createCar(scene, x, z, heading, color, police = false) {
       this.mesh.userData.wheels[1].rotation.y = this.steer * 0.7;
     },
     remove() {
+      if (currentHero === this) currentHero = null;
       scene.remove(this.mesh);
     },
   };
+  if (hero) currentHero = car;
   car.sync();
   return car;
 }

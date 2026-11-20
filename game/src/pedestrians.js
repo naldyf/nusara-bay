@@ -4,7 +4,7 @@ import { PEDS } from './config.js';
 import { makePersonMesh } from './player.js';
 import { clampToWorld } from './city.js';
 
-const JACKETS = [0xc94f4f, 0x4f7ec9, 0xd9c24f, 0x7a4fc9, 0x4fc97a, 0xe8e8e8, 0x333338];
+const JACKETS = [0xc94f4f, 0x4f7ec9, 0xd9c24f, 0x7a4fc9, 0x4fc97a, 0xe8e8e8, 0x333338, 0x2e8a7a, 0xe8a13a];
 
 function sidewalkPoint(rng, city) {
   const street = rng.pick(city.streets);
@@ -19,6 +19,8 @@ export function createPedestrians(scene, rng, city) {
   for (let i = 0; i < PEDS.count; i++) {
     const p = sidewalkPoint(rng, city);
     const mesh = makePersonMesh(rng.pick(JACKETS));
+    // A little height variation so the crowd is not one repeated cutout.
+    mesh.scale.setScalar(rng.range(0.95, 1.05));
     scene.add(mesh);
     peds.push({
       mesh,

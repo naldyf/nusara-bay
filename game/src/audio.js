@@ -73,9 +73,10 @@ export function createAudio() {
   // drive. Scheduled on a timer so the loop never drifts.
   const STATIONS = [
     {
-      name: 'BAY FM ♪',
+      name: 'BAY FM',
       wave: 'triangle',
       vol: 0.05,
+      tracks: ['Sunset Over the Bay', 'Harbor Lights', 'Neon Palms', "Dara's Theme"],
       chords: [
         [220, 261.6, 329.6],
         [174.6, 220, 261.6],
@@ -84,9 +85,10 @@ export function createAudio() {
       ],
     },
     {
-      name: 'DUSK FM ♪',
+      name: 'DUSK FM',
       wave: 'sine',
       vol: 0.06,
+      tracks: ['Low Tide', 'Golden Hour Drive', 'Midnight Ferry', "Madame Sari's Waltz"],
       chords: [
         [146.8, 220, 293.7],
         [116.5, 174.6, 233.1],
@@ -194,7 +196,11 @@ export function createAudio() {
       return station >= 0;
     },
     radioLabel() {
-      return station < 0 ? 'RADIO OFF — press M' : STATIONS[station].name;
+      if (station < 0) return 'RADIO OFF — press M';
+      const st = STATIONS[station];
+      // A new track every ~20 s (one chord every 2 s), so the label moves.
+      const track = st.tracks[Math.floor(chordStep / 10) % st.tracks.length];
+      return `♪ ${st.name} — ${track}`;
     },
   };
 }

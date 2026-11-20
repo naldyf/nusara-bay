@@ -157,6 +157,24 @@ export function createMissions(scene, G) {
       if (this.dropList) return this.dropList[this.dropIndex];
       return job.drop;
     },
+    // What the job card shows: job number, title, stage, countdown, drop leg.
+    // The HUD reads this every frame, so the timer and the stage bar tick.
+    hudInfo() {
+      const job = STORY.jobs[this.jobIndex];
+      const stage =
+        this.phase === 'idle' ? 0 : this.phase === 'pickup' ? 1 : this.phase === 'deliver' ? 2 : 3;
+      return {
+        id: job.id,
+        total: STORY.jobs.length,
+        title: job.title,
+        stage, // 0 idle, 1 pickup, 2 deliver, 3 done
+        stageLabel:
+          this.phase === 'idle' ? 'FREE ROAM' : this.phase === 'pickup' ? 'PICKUP' : this.phase === 'deliver' ? 'DELIVER' : 'DONE',
+        timer: this.phase === 'deliver' ? Math.max(0, this.timer) : null,
+        leg: this.dropList ? `${this.dropIndex + 1}/${this.dropList.length}` : null,
+        objective: this.objective,
+      };
+    },
     // The pickup is done: the clock starts, the heat (if any) arrives, and
     // the rival starts his engine.
     onPickup() {

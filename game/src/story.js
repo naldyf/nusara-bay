@@ -9,6 +9,17 @@
 //   drops — a list of drop-offs in order; time applies to each leg
 //   race — Viko the rival drives the route too; beat him to the finish
 //   stealColor — the marked car's paint
+// Police-radio chatter for the dispatch panel, one line per wanted level.
+// The HUD cycles them so the panel reads as a live radio, not a label.
+export const DISPATCH_LINES = [
+  [], // 0 stars — the panel is hidden
+  ['"Unit 12, a 10-50 at the market — keep eyes on the sedan."'],
+  ['"All units, suspect is mobile — eastbound on the bay road."'],
+  ['"Roadblock on the north gate — spike strips ready."'],
+  ['"Air One is up — spotlight on the suspect, do not lose visual."'],
+  ['"Five stars — every unit in the bay converges on the harbor."'],
+];
+
 export const STORY = {
   hero: 'Dara',
   boss: 'Madame Sari',

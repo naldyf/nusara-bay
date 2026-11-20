@@ -6,7 +6,13 @@ import { ACTION_SHOOT } from './input.js';
 
 export function createCombat(scene, G) {
   const tracerGeo = new THREE.BoxGeometry(0.06, 0.06, 1);
-  const tracerMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.9 });
+  const tracerMat = new THREE.MeshBasicMaterial({
+    color: 0xffe9a8,
+    transparent: true,
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
   const tracers = [];
   let cooldown = 0;
   let wantedCooldown = 0;

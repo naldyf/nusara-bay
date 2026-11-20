@@ -65,6 +65,24 @@ export function createMinimap(canvas, city) {
         ctx.arc(px, py, 3, 0, Math.PI * 2);
         ctx.fill();
       }
+      // The helicopter, when it is up — a gold dot with a search-zone ring
+      // around the player, so the heat reads on the map as well as the sky.
+      if (G.heli && G.heli.mesh.visible) {
+        const [hx, hy] = toMap(G.heli.mesh.position.x, G.heli.mesh.position.z);
+        ctx.fillStyle = '#ffd21f';
+        ctx.beginPath();
+        ctx.arc(hx, hy, 4, 0, Math.PI * 2);
+        ctx.fill();
+        const p = G.player.onFoot ? G.player.pos : G.player.car.pos;
+        const [px, py] = toMap(p.x, p.z);
+        ctx.strokeStyle = 'rgba(255,51,68,0.85)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.arc(px, py, 35 * SCALE, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
       // Viko the rival, when he is racing Dara.
       if (G.missions.rival) {
         const [rx, ry] = toMap(G.missions.rival.car.pos.x, G.missions.rival.car.pos.z);

@@ -8,8 +8,9 @@ function smokeTexture() {
   c.height = 64;
   const g = c.getContext('2d');
   const grad = g.createRadialGradient(32, 32, 4, 32, 32, 30);
-  grad.addColorStop(0, 'rgba(200,200,210,0.55)');
-  grad.addColorStop(1, 'rgba(200,200,210,0)');
+  // Warm dusk smoke: lit by the low sun, not the grey-blue of v2.
+  grad.addColorStop(0, 'rgba(232,200,168,0.55)');
+  grad.addColorStop(1, 'rgba(232,200,168,0)');
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 64);
   return new THREE.CanvasTexture(c);

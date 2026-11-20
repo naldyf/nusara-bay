@@ -50,6 +50,8 @@ export function createTraffic(scene, rng, city) {
         }
         const want = ahead < 8 ? 0 : t.speed;
         c.speed += Math.max(-14 * dt, Math.min(14 * dt, want - c.speed));
+        // Brake lights flare while the car is braking for traffic ahead.
+        c.mesh.userData.tailMat.color.setHex(want === 0 && c.speed > 2 ? 0xff4444 : 0x881111);
         c.pos.x += fx * c.speed * dt;
         c.pos.z += fz * c.speed * dt;
         // At an intersection, sometimes turn onto the crossing street.

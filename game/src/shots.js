@@ -21,7 +21,7 @@ export function stageShot(G, name, seed) {
   if (name === 'chase') {
     // Cover: Dara mid-drift downtown, 4 wanted stars, cruisers behind,
     // helicopter overhead, Job 3 on the clock, minimap full of blips.
-    const car = createCar(G.scene, 0, 24, Math.PI, 0xc94f4f);
+    const car = createCar(G.scene, 0, 24, Math.PI, 0xc94f4f, false, true);
     G.player.getIn(car, G);
     car.speed = 22;
     G.police.wanted = 4;
@@ -43,9 +43,17 @@ export function stageShot(G, name, seed) {
     G.missions.placeMarker(-100, -92);
     G.minimap.setObjective(-100, -92);
     G.cash = 1240;
+    let storyShown = false;
     return (dt) => {
       t += dt;
       input.fake('KeyW', true);
+      // The briefing fades on a wall-clock timer, so trigger it just before
+      // the frame is captured — otherwise it is gone by the time the slow
+      // headless renderer reaches the ready point.
+      if (t > 2.8 && !storyShown) {
+        storyShown = true;
+        G.hud.setStory(STORY.jobs[2].briefing);
+      }
       // Keep the helicopter pinned just ahead of the car, low and in frame,
       // so the cover shows the body and its red stripe — not only the beam.
       const p = G.player.car.pos;
@@ -77,7 +85,7 @@ export function stageShot(G, name, seed) {
     // water behind it, the safehouse toast still showing. The car sits in
     // the clear lane between the container stacks (x -70, z 100) so nothing
     // crosses it.
-    const car = createCar(G.scene, -70, 100, Math.PI / 2, 0xd9a527);
+    const car = createCar(G.scene, -70, 100, Math.PI / 2, 0xd9a527, false, true);
     car.parked = true;
     G.parked.push(car);
     G.player.pos.x = -70;

@@ -1,5 +1,10 @@
 // Nusara Bay — all tuning in one place. Every number the game balances on lives
 // here so a tuning pass touches one file and nothing else.
+//
+// Iteration 3 re-lights the city for golden hour: the dusk-purple palette of
+// v2 is replaced by the Golden Hour Kings palette — a warm low sun, peach
+// haze the same colour as the horizon, and cool blue sky fill. The numbers
+// below are the whole look; city.js turns them into sky, fog and lights.
 export const WORLD = {
   half: 170, // city ground spans -170..170 on x and z
   streetGap: 40, // streets every 40 units
@@ -33,8 +38,8 @@ export const POLICE = {
   bustedTime: 3,
 };
 
-export const TRAFFIC = { count: 14, topSpeed: 12 };
-export const PEDS = { count: 26 };
+export const TRAFFIC = { count: 18, topSpeed: 12 };
+export const PEDS = { count: 34 };
 
 export const PLAYER = { healthMax: 100, cashStart: 250 };
 
@@ -42,16 +47,33 @@ export const JOB_TIME = { pickup: 999, deliver: 90 };
 
 export const SAVE_KEY = 'nusara-bay-save-v1';
 
+// Golden-hour palette — one object, used by sky, fog, lights and materials.
+// No hex code for the light lives anywhere else in the scene.
+export const GOLDEN_HOUR = {
+  skyZenith: 0x7a5aa8, // purple-blue top of sky
+  skyHorizon: 0xff9a5c, // orange horizon band (== fog colour)
+  fog: 0xf7c9a0, // peach haze — fog MUST equal the horizon colour
+  sun: 0xffcf8a, // warm key light
+  sunIntensity: 3.0,
+  hemiSky: 0x9ecbff, // cool blue sky fill
+  hemiGround: 0xd7a26a, // warm bounce from the ground
+  hemiIntensity: 0.75,
+  exposure: 1.2, // ACES exposure, 1.1-1.25 range
+  fogDensity: 0.009, // FogExp2: far skyline dissolves, near street stays crisp
+  sunElevation: 19, // degrees; low enough for long shadows across the road
+};
+
 // Dusk tropical palette: teal water, amber sodium light, magenta/cyan neon,
-// low sun and long shadows — deliberately not the pale Mediterranean look.
+// low golden sun and long shadows — deliberately not the pale Mediterranean
+// look, and not the flat purple dusk of v2.
 export const PALETTE = {
-  sky: 0x2b1d4e,
-  fog: 0x35224f,
-  sun: 0xffb36b,
-  sunIntensity: 3.2,
-  hemiSky: 0x8a6fb8,
-  hemiGround: 0x3a2a22,
-  hemiIntensity: 0.85,
+  sky: 0x7a5aa8,
+  fog: 0xf7c9a0,
+  sun: 0xffcf8a,
+  sunIntensity: 3.0,
+  hemiSky: 0x9ecbff,
+  hemiGround: 0xd7a26a,
+  hemiIntensity: 0.75,
   water: 0x0e7d8a,
   sand: 0xc9a06a,
   asphalt: 0x34343f,

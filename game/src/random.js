@@ -19,5 +19,10 @@ export function createRandom(seed) {
     pick(list) {
       return list[Math.floor(this.next() * list.length)];
     },
+    // A value with a little deterministic wobble either side — rooftop
+    // clutter, lamp spacing and palm lean all use it so nothing lines up.
+    jitter(value, amount) {
+      return value + (this.next() - 0.5) * 2 * amount;
+    },
   };
 }

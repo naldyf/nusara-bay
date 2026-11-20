@@ -11,6 +11,7 @@ export function saveGame(G) {
         jobIndex: G.missions.jobIndex,
         jobsDone: G.jobsDone,
         health: G.health,
+        savedAt: Date.now(),
       }),
     );
     return true;
