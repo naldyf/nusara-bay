@@ -1,67 +1,199 @@
-// Dara on foot: a low-poly walker who can enter, exit and steal cars.
-// Stealing is the genre's core verb — it sets off the alarm and raises the
-// wanted level by one, which is what turns a walk into a chase.
+// Dara on foot: detailed stylized character with articulated limbs, readable kit,
+// and natural walk/run animation. Compatible with pedestrians.js via userData.legs.
 import * as THREE from 'three';
-import { FOOT, CAR } from './config.js';
+import { FOOT } from './config.js';
 import { collideCircle, clampToWorld } from './city.js';
 import { ACTION_ENTER } from './input.js';
 import { makeHero } from './vehicles.js';
 
 export function makePersonMesh(jacket = 0xe8a13a, skin = 0xc98a5f, kit = false) {
   const group = new THREE.Group();
-  const torso = new THREE.Mesh(
-    new THREE.BoxGeometry(0.55, 0.7, 0.32),
-    new THREE.MeshStandardMaterial({ color: jacket, roughness: 0.9 }),
-  );
-  torso.position.y = 1.05;
+  const body = new THREE.Group();
+  group.add(body);
+
+  const jacketMat = new THREE.MeshStandardMaterial({
+    color: jacket,
+    roughness: 0.62,
+    metalness: 0.06,
+  });
+  const shirtMat = new THREE.MeshStandardMaterial({
+    color: kit ? 0xf2f4f8 : 0xd8dce3,
+    roughness: 0.85,
+  });
+  const skinMat = new THREE.MeshStandardMaterial({
+    color: skin,
+    roughness: 0.68,
+  });
+  const pantsMat = new THREE.MeshStandardMaterial({
+    color: kit ? 0x222838 : 0x2c2c38,
+    roughness: 0.82,
+  });
+  const shoeMat = new THREE.MeshStandardMaterial({
+    color: kit ? 0xf0f2f5 : 0x1e1e24,
+    roughness: 0.55,
+  });
+  const darkMat = new THREE.MeshStandardMaterial({
+    color: 0x1a1c24,
+    roughness: 0.7,
+    metalness: 0.15,
+  });
+
+  // --- Layered torso (jacket + inner shirt + collar + belt) ---
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.62, 0.28), jacketMat);
+  torso.position.y = 1.07;
   torso.castShadow = true;
-  group.add(torso);
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.24, 10, 8),
-    new THREE.MeshStandardMaterial({ color: skin, roughness: 0.8 }),
-  );
-  head.position.y = 1.62;
+  torso.receiveShadow = true;
+  body.add(torso);
+
+  const innerShirt = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.58, 0.295), shirtMat);
+  innerShirt.position.set(0, 1.07, 0.005);
+  body.add(innerShirt);
+
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.08, 12), jacketMat);
+  collar.position.y = 1.39;
+  body.add(collar);
+
+  const belt = new THREE.Mesh(new THREE.BoxGeometry(0.53, 0.08, 0.3), darkMat);
+  belt.position.y = 0.76;
+  body.add(belt);
+
+  // --- Neck & smooth head ---
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.095, 0.12, 12), skinMat);
+  neck.position.y = 1.44;
+  body.add(neck);
+
+  const headGroup = new THREE.Group();
+  headGroup.position.y = 1.63;
+  body.add(headGroup);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 20, 16), skinMat);
+  head.scale.set(0.95, 1.06, 0.98);
   head.castShadow = true;
-  group.add(head);
-  // Dara's kit — a cyan cap and a dark backpack — so he reads as a person
-  // from behind instead of merging with the car beside him. Pedestrians
-  // keep the plain build; only Dara carries the kit.
+  headGroup.add(head);
+
   if (kit) {
-    const cap = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.24, 0.26, 0.12, 10),
-      new THREE.MeshStandardMaterial({ color: 0x7cffef, roughness: 0.7 }),
+    // Dara's black shades, so the face direction reads at a glance.
+    const shades = new THREE.Mesh(
+      new THREE.BoxGeometry(0.32, 0.075, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x10141c, roughness: 0.15, metalness: 0.85 }),
     );
-    cap.position.y = 1.84;
-    group.add(cap);
-    const brim = new THREE.Mesh(
-      new THREE.BoxGeometry(0.3, 0.04, 0.2),
-      new THREE.MeshStandardMaterial({ color: 0x7cffef, roughness: 0.7 }),
+    shades.position.set(0, 0.02, 0.18);
+    headGroup.add(shades);
+
+    // Cyan cap + brim + accent strip.
+    const capMat = new THREE.MeshStandardMaterial({
+      color: 0x3ef0df,
+      roughness: 0.45,
+      emissive: 0x0b3a36,
+      emissiveIntensity: 0.35,
+    });
+    const capDome = new THREE.Mesh(
+      new THREE.SphereGeometry(0.222, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.52),
+      capMat,
     );
-    brim.position.set(0, 1.8, 0.26);
-    group.add(brim);
-    const pack = new THREE.Mesh(
-      new THREE.BoxGeometry(0.34, 0.44, 0.16),
-      new THREE.MeshStandardMaterial({ color: 0x2e4a5a, roughness: 0.9 }),
+    capDome.position.y = 0.05;
+    capDome.castShadow = true;
+    headGroup.add(capDome);
+
+    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.035, 0.22), capMat);
+    brim.position.set(0, 0.07, 0.22);
+    brim.rotation.x = 0.08;
+    headGroup.add(brim);
+
+    // Tactical backpack + shoulder straps + reflective strip, so the
+    // silhouette from behind reads clearly.
+    const packMat = new THREE.MeshStandardMaterial({ color: 0x223645, roughness: 0.65 });
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.46, 0.17), packMat);
+    pack.position.set(0, 1.08, -0.21);
+    pack.castShadow = true;
+    body.add(pack);
+
+    const reflector = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 0.045, 0.02),
+      new THREE.MeshStandardMaterial({
+        color: 0x7cffef,
+        emissive: 0x4deee0,
+        emissiveIntensity: 0.9,
+        roughness: 0.3,
+      }),
     );
-    pack.position.set(0, 1.08, -0.24);
-    group.add(pack);
+    reflector.position.set(0, 1.18, -0.3);
+    body.add(reflector);
+
+    for (const sx of [-0.15, 0.15]) {
+      const strap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.44, 0.33), darkMat);
+      strap.position.set(sx, 1.12, -0.02);
+      body.add(strap);
+    }
+  } else {
+    // Simple hair for pedestrians so they don't read as plain bald.
+    const hair = new THREE.Mesh(
+      new THREE.SphereGeometry(0.218, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      darkMat,
+    );
+    hair.position.set(0, 0.03, -0.02);
+    headGroup.add(hair);
   }
+
+  // --- Arms hinged from the shoulders ---
+  const arms = [];
+  for (const side of [-1, 1]) {
+    const armPivot = new THREE.Group();
+    armPivot.position.set(side * 0.34, 1.32, 0);
+
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.075, 0.42, 12), jacketMat);
+    sleeve.position.y = -0.21;
+    sleeve.castShadow = true;
+    armPivot.add(sleeve);
+
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.072, 10, 8), skinMat);
+    hand.position.y = -0.45;
+    armPivot.add(hand);
+
+    // Pistol in Dara's right hand.
+    if (kit && side === 1) {
+      const gunMetal = new THREE.MeshStandardMaterial({
+        color: 0x1b1e26,
+        roughness: 0.28,
+        metalness: 0.85,
+      });
+      const slide = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.085, 0.28), gunMetal);
+      slide.position.set(0, -0.44, 0.14);
+      armPivot.add(slide);
+
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.13, 0.075), darkMat);
+      grip.position.set(0, -0.51, 0.04);
+      grip.rotation.x = -0.22;
+      armPivot.add(grip);
+    }
+
+    body.add(armPivot);
+    arms.push(armPivot);
+  }
+
+  // --- Legs hinged from the hips + contrast shoes ---
   const legs = [];
-  const legMat = new THREE.MeshStandardMaterial({ color: 0x2a2a33, roughness: 1 });
   for (const x of [-0.14, 0.14]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 0.22), legMat);
-    leg.position.set(x, 0.35, 0);
-    group.add(leg);
-    legs.push(leg);
+    const legPivot = new THREE.Group();
+    legPivot.position.set(x, 0.72, 0);
+
+    const trouser = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.082, 0.62, 12), pantsMat);
+    trouser.position.y = -0.31;
+    trouser.castShadow = true;
+    legPivot.add(trouser);
+
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.12, 0.28), shoeMat);
+    shoe.position.set(0, -0.66, 0.045);
+    shoe.castShadow = true;
+    legPivot.add(shoe);
+
+    body.add(legPivot);
+    legs.push(legPivot);
   }
-  // Dara carries a pistol in his right hand.
-  const gun = new THREE.Mesh(
-    new THREE.BoxGeometry(0.09, 0.14, 0.34),
-    new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.4, metalness: 0.6 }),
-  );
-  gun.position.set(0.36, 0.95, 0.2);
-  group.add(gun);
+
+  group.userData.body = body;
   group.userData.legs = legs;
+  group.userData.arms = arms;
   return group;
 }
 
@@ -79,7 +211,8 @@ export function createPlayer(scene, x, z) {
     update(dt, input, G) {
       if (!this.onFoot) return null;
       const axis = input.axis();
-      const speed = input.run() ? FOOT.run : FOOT.walk;
+      const running = input.run();
+      const speed = running ? FOOT.run : FOOT.walk;
       // Movement is relative to the camera yaw so W always walks away from us.
       const yaw = G.cameraYaw;
       const mx = Math.sin(yaw) * axis.y + Math.cos(yaw) * axis.x;
@@ -89,15 +222,30 @@ export function createPlayer(scene, x, z) {
         this.heading = Math.atan2(mx, mz);
         this.pos.x += (mx / len) * speed * dt;
         this.pos.z += (mz / len) * speed * dt;
-        this.walkPhase += dt * speed * 1.6;
+        this.walkPhase += dt * speed * 1.65;
       }
       clampToWorld(this.pos, FOOT.radius);
       collideCircle(this.pos, FOOT.radius, G.city.colliders);
       this.mesh.position.set(this.pos.x, 0, this.pos.z);
       this.mesh.rotation.y = this.heading;
-      const swing = len > 0.01 ? Math.sin(this.walkPhase) * 0.5 : 0;
+
+      const moving = len > 0.01;
+      const amp = running ? 0.72 : 0.48;
+      const swing = moving ? Math.sin(this.walkPhase) * amp : 0;
+
+      // Natural leg, arm and body-bob swing.
       this.mesh.userData.legs[0].rotation.x = swing;
       this.mesh.userData.legs[1].rotation.x = -swing;
+      if (this.mesh.userData.arms) {
+        this.mesh.userData.arms[0].rotation.x = -swing * 0.75;
+        // Right arm slightly raised while holding the pistol.
+        this.mesh.userData.arms[1].rotation.x = moving ? swing * 0.45 - 0.35 : -0.25;
+      }
+      if (this.mesh.userData.body) {
+        this.mesh.userData.body.position.y = moving ? Math.abs(Math.sin(this.walkPhase)) * 0.06 : 0;
+        this.mesh.userData.body.rotation.x = moving && running ? 0.12 : 0;
+      }
+
       if (input.action(ACTION_ENTER)) {
         return this.tryEnterCar(G);
       }

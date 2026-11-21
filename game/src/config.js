@@ -50,38 +50,34 @@ export const SAVE_KEY = 'nusara-bay-save-v1';
 // Golden-hour palette — one object, used by sky, fog, lights and materials.
 // No hex code for the light lives anywhere else in the scene.
 export const GOLDEN_HOUR = {
-  skyZenith: 0x7a5aa8, // purple-blue top of sky
-  skyHorizon: 0xff9a5c, // orange horizon band
-  fog: 0xf7c9a0, // peach haze — matches the bottom of the sky gradient, so the
-  // fog and the low sky meet with no visible seam. It is NOT the same value
-  // as skyHorizon: the gradient runs orange at the horizon, then fades into
-  // this peach haze below it. An earlier comment claimed they matched; they
-  // never did, and the look never needed them to.
-  sun: 0xffcf8a, // warm key light
-  sunIntensity: 3.0,
-  hemiSky: 0x9ecbff, // cool blue sky fill
-  hemiGround: 0xd7a26a, // warm bounce from the ground
-  hemiIntensity: 0.75,
-  exposure: 1.2, // ACES exposure, 1.1-1.25 range
-  fogDensity: 0.009, // FogExp2: far skyline dissolves, near street stays crisp
-  sunElevation: 19, // degrees; low enough for long shadows across the road
+  skyZenith: 0x3b2d6b, // deeper top of sky so buildings & neon pop against it
+  skyHorizon: 0xff8642, // richer golden-orange horizon
+  fog: 0xe8a87c, // cleaner warm haze, does not wash the frame out
+  sun: 0xffc878, // warm golden key light
+  sunIntensity: 3.4, // firmer sun for realistic shadows & highlights
+  hemiSky: 0x7eb6ff, // cool blue sky fill on the shadow side
+  hemiGround: 0x5c3d2e, // darker warm bounce from asphalt, more contrast
+  hemiIntensity: 0.65,
+  exposure: 1.15, // ACES Filmic exposure, balanced (not overexposed)
+  fogDensity: 0.0052, // down from 0.009: distant streets & towers stay crisp
+  sunElevation: 17, // degrees; slightly lower sun, longer cinematic shadows
 };
 
 // Dusk tropical palette: teal water, amber sodium light, magenta/cyan neon,
 // low golden sun and long shadows — deliberately not the pale Mediterranean
 // look, and not the flat purple dusk of v2.
 export const PALETTE = {
-  sky: 0x7a5aa8,
-  fog: 0xf7c9a0,
-  sun: 0xffcf8a,
-  sunIntensity: 3.0,
-  hemiSky: 0x9ecbff,
-  hemiGround: 0xd7a26a,
-  hemiIntensity: 0.75,
-  water: 0x0e7d8a,
-  sand: 0xc9a06a,
-  asphalt: 0x34343f,
-  sidewalk: 0x4d485c,
+  sky: 0x3b2d6b,
+  fog: 0xe8a87c,
+  sun: 0xffc878,
+  sunIntensity: 3.4,
+  hemiSky: 0x7eb6ff,
+  hemiGround: 0x5c3d2e,
+  hemiIntensity: 0.65,
+  water: 0x0b6e7d,
+  sand: 0xc99b63,
+  asphalt: 0x262630, // slightly darker asphalt so road markings & headlights pop
+  sidewalk: 0x454152,
   downtownGlass: [0x5f9cc0, 0x4a7fa5, 0x7fb8d4, 0x3d6f92],
   downtownLit: 0xffd27a,
   house: [0xd98a5f, 0xc96f4a, 0xe8b07a, 0xb85c6e, 0x7a9e7e],

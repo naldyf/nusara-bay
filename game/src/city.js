@@ -69,11 +69,11 @@ function skyTexture() {
   c.height = 512;
   const g = c.getContext('2d');
   const grad = g.createLinearGradient(0, 0, 0, 512);
-  grad.addColorStop(0, '#6b4f9e');
-  grad.addColorStop(0.42, '#b06a8a');
-  grad.addColorStop(0.58, '#ff9a5c');
-  grad.addColorStop(0.74, '#f7c9a0');
-  grad.addColorStop(1, '#f7c9a0');
+  grad.addColorStop(0.0, '#2e245e');
+  grad.addColorStop(0.38, '#7e4c85');
+  grad.addColorStop(0.56, '#ff8642');
+  grad.addColorStop(0.72, '#e8a87c');
+  grad.addColorStop(1.0, '#e8a87c');
   g.fillStyle = grad;
   g.fillRect(0, 0, 4, 512);
   const t = new THREE.CanvasTexture(c);
@@ -98,91 +98,210 @@ function glowTexture() {
   return t;
 }
 
-// A lit-window texture drawn on a canvas at runtime. The background is
-// near-black so only the lit windows glow through the emissive map; the
-// wall colour itself comes from the material. cols/rows/lits set the
-// archetype: dense small windows for slabs, sparse big ones for houses.
-function windowTexture(rng, cols, rows, litRatio, bg) {
-  const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = bg;
-  g.fillRect(0, 0, 64, 128);
-  const cw = 64 / cols;
-  const ch = 128 / rows;
+// A lit-window texture drawn on a canvas at runtime, now HD (256x512) with
+// mullion frames, curtain gradients and dark reflective glass variation.
+// Returns both a diffuse map (frames + dark glass, tinted by the material
+// colour) and an emissive map (only the lit windows glow, on a near-black
+// background). cols/rows/litRatio set the archetype: dense small windows for
+// slabs, sparse big ones for houses.
+function windowTextures(rng, cols, rows, litRatio, bg) {
+  const w = 256;
+  const h = 512;
+  const emCanvas = document.createElement('canvas');
+  emCanvas.width = w;
+  emCanvas.height = h;
+  const eg = emCanvas.getContext('2d');
+  eg.fillStyle = bg;
+  eg.fillRect(0, 0, w, h);
+
+  const difCanvas = document.createElement('canvas');
+  difCanvas.width = w;
+  difCanvas.height = h;
+  const dg = difCanvas.getContext('2d');
+  dg.fillStyle = '#c8d2dc';
+  dg.fillRect(0, 0, w, h);
+
+  const cw = w / cols;
+  const ch = h / rows;
+  const padX = cw * 0.16;
+  const padY = ch * 0.18;
+  const ww = cw - padX * 2;
+  const wh = ch - padY * 2;
+
   for (let r = 0; r < rows; r++) {
+    // Floor separator line between storeys.
+    dg.fillStyle = 'rgba(15, 20, 30, 0.35)';
+    dg.fillRect(0, r * ch, w, 2);
+
     for (let col = 0; col < cols; col++) {
+      const x = col * cw + padX;
+      const y = r * ch + padY;
+
+      // Dark glass on the diffuse map so the facade has depth.
+      dg.fillStyle = rng.next() < 0.5 ? '#6d8299' : '#586d85';
+      dg.fillRect(x, y, ww, wh);
+      // Thin sky-reflection highlight on the top of the glass.
+      dg.fillStyle = 'rgba(255, 210, 170, 0.18)';
+      dg.fillRect(x, y, ww, wh * 0.32);
+
       if (rng.next() < litRatio) {
-        // Warm tungsten mostly, one cool fluorescent in ten.
-        g.fillStyle =
-          rng.next() < 0.9
-            ? rng.pick(['#ffd27a', '#ffb36b', '#ffe9b0'])
-            : '#7fd4ff';
-        g.fillRect(col * cw + cw * 0.2, r * ch + ch * 0.2, cw * 0.6, ch * 0.55);
+        const isWarm = rng.next() < 0.88;
+        const baseColor = isWarm
+          ? rng.pick(['#ffd27a', '#ffb86c', '#ffe8ad', '#f7a554'])
+          : '#8ce0ff';
+
+        const grad = eg.createLinearGradient(x, y, x, y + wh);
+        grad.addColorStop(0, baseColor);
+        grad.addColorStop(1, isWarm ? '#c97836' : '#4a98c4');
+        eg.fillStyle = grad;
+        eg.fillRect(x, y, ww, wh);
+
+        // Curtain/blind variation so windows don't read as flat squares.
+        if (rng.next() < 0.35) {
+          eg.fillStyle = 'rgba(0,0,0,0.35)';
+          eg.fillRect(x, y, ww, wh * rng.range(0.25, 0.5));
+        }
       }
     }
   }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+
+  const map = new THREE.CanvasTexture(difCanvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const emissiveMap = new THREE.CanvasTexture(emCanvas);
+  emissiveMap.colorSpace = THREE.SRGBColorSpace;
+  return { map, emissiveMap };
 }
 
-// Asphalt with worn edge lines and speckle noise, drawn once and repeated
-// along every road. The vertical variant has the lines on the sides.
-function roadTexture(rng, vertical) {
+// Asphalt HD (512x512) + roughness map: the golden-hour light and the
+// headlights reflect off the semi-damp patches and tyre tracks instead of a
+// flat matte road. The vertical variant has the lines on the sides.
+function roadTextures(rng, vertical) {
+  const size = 512;
   const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 256;
+  c.width = size;
+  c.height = size;
   const g = c.getContext('2d');
-  g.fillStyle = '#34343f';
-  g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 900; i++) {
-    g.fillStyle = rng.next() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.12)';
-    g.fillRect(rng.range(0, 256), rng.range(0, 256), 2, 2);
+
+  const rc = document.createElement('canvas');
+  rc.width = size;
+  rc.height = size;
+  const rg = rc.getContext('2d');
+
+  // Darker asphalt base so the markings and the light read.
+  g.fillStyle = '#262630';
+  g.fillRect(0, 0, size, size);
+  // Roughness base fairly rough (bright = rough, dark = more reflective).
+  rg.fillStyle = '#c8c8c8';
+  rg.fillRect(0, 0, size, size);
+
+  // Fine asphalt aggregate speckle.
+  for (let i = 0; i < 4500; i++) {
+    const x = rng.range(0, size);
+    const y = rng.range(0, size);
+    const bright = rng.next() < 0.45;
+    g.fillStyle = bright ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.14)';
+    g.fillRect(x, y, 2, 2);
   }
-  // Faded centre wear where tyres run.
-  g.fillStyle = 'rgba(0,0,0,0.10)';
-  if (vertical) g.fillRect(88, 0, 80, 256);
-  else g.fillRect(0, 88, 256, 80);
-  // Solid edge lines, worn at the ends.
-  g.fillStyle = 'rgba(201,194,160,0.85)';
+
+  // Semi-damp / smooth patches so the golden-hour reflection feels alive.
+  for (let i = 0; i < 16; i++) {
+    const px = rng.range(40, size - 40);
+    const py = rng.range(40, size - 40);
+    const rad = rng.range(28, 72);
+    const pGrad = rg.createRadialGradient(px, py, 4, px, py, rad);
+    pGrad.addColorStop(0, 'rgba(65, 65, 65, 0.75)');
+    pGrad.addColorStop(1, 'rgba(200, 200, 200, 0)');
+    rg.fillStyle = pGrad;
+    rg.beginPath();
+    rg.arc(px, py, rad, 0, Math.PI * 2);
+    rg.fill();
+  }
+
+  // Tyre-wear lanes (a touch darker and a touch smoother/more reflective).
+  g.fillStyle = 'rgba(0,0,0,0.14)';
+  rg.fillStyle = 'rgba(110,110,110,0.45)';
+  for (const lane of [145, 315]) {
+    if (vertical) {
+      g.fillRect(lane, 0, 52, size);
+      rg.fillRect(lane, 0, 52, size);
+    } else {
+      g.fillRect(0, lane, size, 52);
+      rg.fillRect(0, lane, size, 52);
+    }
+  }
+
+  // Sharp edge lines.
+  g.fillStyle = 'rgba(220, 212, 178, 0.9)';
   if (vertical) {
-    g.fillRect(5, 0, 4, 256);
-    g.fillRect(247, 0, 4, 256);
+    g.fillRect(12, 0, 7, size);
+    g.fillRect(size - 19, 0, 7, size);
   } else {
-    g.fillRect(0, 5, 256, 4);
-    g.fillRect(0, 247, 256, 4);
+    g.fillRect(0, 12, size, 7);
+    g.fillRect(0, size - 19, size, 7);
+  }
+
+  const map = new THREE.CanvasTexture(c);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+
+  const roughnessMap = new THREE.CanvasTexture(rc);
+  roughnessMap.wrapS = roughnessMap.wrapT = THREE.RepeatWrapping;
+
+  return { map, roughnessMap };
+}
+
+// Warm concrete pavers for the sidewalks — HD (256x256) with grout lines and
+// a kerb edge, so it reads at street level.
+function sidewalkTexture(rng) {
+  const size = 256;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const g = c.getContext('2d');
+  g.fillStyle = '#484354';
+  g.fillRect(0, 0, size, size);
+  for (let i = 0; i < 900; i++) {
+    g.fillStyle = rng.next() < 0.5 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.11)';
+    g.fillRect(rng.range(0, size), rng.range(0, size), 2, 2);
+  }
+  for (let p = 0; p <= size; p += 64) {
+    g.strokeStyle = 'rgba(0,0,0,0.32)';
+    g.lineWidth = 3;
+    g.beginPath(); g.moveTo(p, 0); g.lineTo(p, size); g.stroke();
+    g.beginPath(); g.moveTo(0, p); g.lineTo(size, p); g.stroke();
+
+    g.strokeStyle = 'rgba(255,255,255,0.06)';
+    g.lineWidth = 1;
+    g.beginPath(); g.moveTo(p + 2, 0); g.lineTo(p + 2, size); g.stroke();
+    g.beginPath(); g.moveTo(0, p + 2); g.lineTo(size, p + 2); g.stroke();
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = THREE.RepeatWrapping;
-  t.wrapT = THREE.RepeatWrapping;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }
 
-// Warm concrete pavers for the sidewalks — a grid that reads at street level.
-function sidewalkTexture(rng) {
+// Procedural ripple texture for the sea's bumpMap; updateAtmosphere scrolls
+// its offset so the water moves.
+function waterBumpTexture(rng) {
+  const size = 256;
   const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 128;
+  c.width = size;
+  c.height = size;
   const g = c.getContext('2d');
-  g.fillStyle = '#4d485c';
-  g.fillRect(0, 0, 128, 128);
-  for (let i = 0; i < 220; i++) {
-    g.fillStyle = rng.next() < 0.5 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.10)';
-    g.fillRect(rng.range(0, 128), rng.range(0, 128), 2, 2);
-  }
-  g.strokeStyle = 'rgba(0,0,0,0.25)';
-  g.lineWidth = 2;
-  for (let p = 0; p <= 128; p += 32) {
-    g.beginPath(); g.moveTo(p, 0); g.lineTo(p, 128); g.stroke();
-    g.beginPath(); g.moveTo(0, p); g.lineTo(128, p); g.stroke();
+  g.fillStyle = '#808080';
+  g.fillRect(0, 0, size, size);
+  for (let i = 0; i < 240; i++) {
+    const x = rng.range(0, size);
+    const y = rng.range(0, size);
+    const w = rng.range(18, 52);
+    const h = rng.range(3, 8);
+    g.fillStyle = rng.next() < 0.5 ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)';
+    g.fillRect(x, y, w, h);
   }
   const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = THREE.RepeatWrapping;
-  t.wrapT = THREE.RepeatWrapping;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(16, 4);
   return t;
 }
 
@@ -228,11 +347,11 @@ function buildInstanced(scene, geo, mat, list, { shadow = false } = {}) {
 
 export function buildCity(scene, rng) {
   const colliders = [];
-  const winTexA = windowTexture(rng, 8, 16, 0.45, '#0a0f18');
-  const winTexB = windowTexture(rng, 6, 12, 0.35, '#0a0f18');
-  const winTexC = windowTexture(rng, 10, 20, 0.55, '#0a0f18');
-  const houseWinA = windowTexture(rng, 3, 2, 0.5, '#000000');
-  const houseWinB = windowTexture(rng, 3, 2, 0.4, '#000000');
+  const winTexA = windowTextures(rng, 8, 16, 0.48, '#070b12');
+  const winTexB = windowTextures(rng, 6, 12, 0.38, '#070b12');
+  const winTexC = windowTextures(rng, 10, 20, 0.56, '#070b12');
+  const houseWinA = windowTextures(rng, 3, 2, 0.52, '#000000');
+  const houseWinB = windowTextures(rng, 3, 2, 0.42, '#000000');
   const glowTex = glowTexture();
 
   // --- golden-hour sky, fog, sun, hemisphere --------------------------------
@@ -282,12 +401,24 @@ export function buildCity(scene, rng) {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const roadTexH = roadTexture(rng, false);
-  roadTexH.repeat.set(34, 1);
-  const roadTexV = roadTexture(rng, true);
-  roadTexV.repeat.set(1, 34);
-  const roadMatH = new THREE.MeshStandardMaterial({ map: roadTexH, roughness: 0.95 });
-  const roadMatV = new THREE.MeshStandardMaterial({ map: roadTexV, roughness: 0.95 });
+  const roadH = roadTextures(rng, false);
+  roadH.map.repeat.set(34, 1);
+  roadH.roughnessMap.repeat.set(34, 1);
+  const roadV = roadTextures(rng, true);
+  roadV.map.repeat.set(1, 34);
+  roadV.roughnessMap.repeat.set(1, 34);
+  const roadMatH = new THREE.MeshStandardMaterial({
+    map: roadH.map,
+    roughnessMap: roadH.roughnessMap,
+    roughness: 0.78,
+    metalness: 0.08,
+  });
+  const roadMatV = new THREE.MeshStandardMaterial({
+    map: roadV.map,
+    roughnessMap: roadV.roughnessMap,
+    roughness: 0.78,
+    metalness: 0.08,
+  });
   const walkTex = sidewalkTexture(rng);
   walkTex.repeat.set(17, 1);
   const walkTexV = walkTex.clone();
@@ -347,9 +478,16 @@ export function buildCity(scene, rng) {
   sand.position.set(85, 0.03, 116);
   sand.receiveShadow = true;
   scene.add(sand);
+  const waterBump = waterBumpTexture(rng);
   const water = new THREE.Mesh(
     new THREE.PlaneGeometry(span, 60),
-    new THREE.MeshStandardMaterial({ color: PALETTE.water, roughness: 0.15, metalness: 0.5 }),
+    new THREE.MeshStandardMaterial({
+      color: PALETTE.water,
+      roughness: 0.1,
+      metalness: 0.65,
+      bumpMap: waterBump,
+      bumpScale: 0.18,
+    }),
   );
   water.rotation.x = -Math.PI / 2;
   water.position.set(0, 0.05, 162);
@@ -364,11 +502,12 @@ export function buildCity(scene, rng) {
     (c, i) =>
       new THREE.MeshStandardMaterial({
         color: c,
-        roughness: 0.35,
-        metalness: 0.55,
+        map: towerWin[i].map,
+        roughness: 0.2,
+        metalness: 0.72,
         emissive: 0xffffff,
-        emissiveMap: towerWin[i],
-        emissiveIntensity: 0.9,
+        emissiveMap: towerWin[i].emissiveMap,
+        emissiveIntensity: 1.05,
       }),
   );
   const houseWin = [houseWinA, houseWinB, houseWinA, houseWinB, houseWinA];
@@ -376,10 +515,12 @@ export function buildCity(scene, rng) {
     (c, i) =>
       new THREE.MeshStandardMaterial({
         color: c,
-        roughness: 0.85,
+        map: houseWin[i].map,
+        roughness: 0.82,
+        metalness: 0.05,
         emissive: 0xffffff,
-        emissiveMap: houseWin[i],
-        emissiveIntensity: 0.55,
+        emissiveMap: houseWin[i].emissiveMap,
+        emissiveIntensity: 0.7,
       }),
   );
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x2a2a30, roughness: 1 });
@@ -742,6 +883,8 @@ export function buildCity(scene, rng) {
     // Drift the dust slowly so the air feels alive; called every frame.
     updateAtmosphere(dt) {
       dustT += dt;
+      waterBump.offset.x += dt * 0.03;
+      waterBump.offset.y += dt * 0.015;
       const pos = dustGeo.attributes.position;
       for (let i = 0; i < DUST_N; i++) {
         pos.array[i * 3] = dustBase[i * 3] + Math.sin(dustT * 0.15 + i * 1.7) * 0.8;

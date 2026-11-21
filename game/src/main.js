@@ -34,9 +34,15 @@ const seed = Number.isInteger(seedParam) ? seedParam : 20261118;
 window.__shotReady = false;
 
 const canvas = document.getElementById('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  powerPreference: 'high-performance',
+  preserveDrawingBuffer: true,
+});
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -49,6 +55,73 @@ camera.position.set(60, 40, 90);
 const rng = createRandom(seed);
 const input = createInput();
 const city = buildCity(scene, rng);
+
+// --- procedural golden-hour IBL & HD shadow/texture pass --------------------
+// Builds a sunset-sky environment map procedurally (no external .hdr) so
+// PBR materials — car clearcoat, building glass, metal — reflect the golden
+// hour instead of reading as matte plastic. Also lifts the sun shadow map
+// to 2048px and maxes texture anisotropy on every textured material the
+// city built (road markings, signs).
+function enhanceVisuals(targetScene, targetRenderer) {
+  const pmrem = new THREE.PMREMGenerator(targetRenderer);
+  const envScene = new THREE.Scene();
+  const envGeo = new THREE.SphereGeometry(50, 32, 16);
+  const envCanvas = document.createElement('canvas');
+  envCanvas.width = 512;
+  envCanvas.height = 256;
+  const ctx = envCanvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0.0, '#2a225c'); // zenith
+  grad.addColorStop(0.42, '#7d4e8a'); // mid sky
+  grad.addColorStop(0.52, '#ff9248'); // golden horizon
+  grad.addColorStop(0.62, '#4a3530'); // warm ground bounce
+  grad.addColorStop(1.0, '#1c1824'); // dark asphalt bounce
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 512, 256);
+
+  // Sun glow on the horizon for realistic specular highlights.
+  const sunGrad = ctx.createRadialGradient(140, 122, 4, 140, 122, 55);
+  sunGrad.addColorStop(0, 'rgba(255, 244, 210, 1)');
+  sunGrad.addColorStop(0.35, 'rgba(255, 195, 110, 0.65)');
+  sunGrad.addColorStop(1, 'rgba(255, 150, 70, 0)');
+  ctx.fillStyle = sunGrad;
+  ctx.fillRect(0, 0, 512, 256);
+
+  const envTex = new THREE.CanvasTexture(envCanvas);
+  envTex.colorSpace = THREE.SRGBColorSpace;
+  envScene.add(new THREE.Mesh(envGeo, new THREE.MeshBasicMaterial({ map: envTex, side: THREE.BackSide })));
+
+  targetScene.environment = pmrem.fromScene(envScene, 0.04).texture;
+  if ('environmentIntensity' in targetScene) targetScene.environmentIntensity = 0.85;
+  pmrem.dispose();
+  envGeo.dispose();
+  envTex.dispose();
+
+  const maxAniso = Math.min(16, targetRenderer.capabilities.getMaxAnisotropy());
+  targetScene.traverse((obj) => {
+    if (obj.isDirectionalLight) {
+      obj.castShadow = true;
+      obj.shadow.mapSize.set(2048, 2048);
+      obj.shadow.bias = -0.0004;
+      obj.shadow.normalBias = 0.035;
+      obj.shadow.radius = 2.5;
+      if (obj.shadow.map) {
+        obj.shadow.map.dispose();
+        obj.shadow.map = null;
+      }
+    }
+    if (obj.isMesh && obj.material) {
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const m of mats) {
+        if (m.map) {
+          m.map.anisotropy = maxAniso;
+          m.map.needsUpdate = true;
+        }
+      }
+    }
+  });
+}
+enhanceVisuals(scene, renderer);
 
 const G = {
   scene,
@@ -167,13 +240,29 @@ function startGame() {
 
 // --- camera: chase cam behind the car, close follow on foot, orbit on title -
 // The camera pulls in along its ray until it is out of every building, so it
-// never clips into a wall. A single headlight spotlight follows the player's
-// car and keeps it readable at dusk.
+// never clips into a wall. A pair of headlight spotlights follows the
+// player's car, with a red taillight glow, and keeps it readable at dusk.
 const camTarget = new THREE.Vector3();
-const headlight = new THREE.SpotLight(0xffe9a8, 220, 48, 0.55, 0.5, 1.0);
-headlight.visible = false;
-scene.add(headlight);
-scene.add(headlight.target);
+
+// Dual headlights (left & right) + taillight glow on the player's car.
+function createHeadlight() {
+  const light = new THREE.SpotLight(0xfff0cc, 165, 58, 0.46, 0.65, 1.35);
+  light.visible = false;
+  scene.add(light);
+  scene.add(light.target);
+  return light;
+}
+const headlightL = createHeadlight();
+const headlightR = createHeadlight();
+const tailGlow = new THREE.PointLight(0xff2a1f, 8, 9, 1.8);
+tailGlow.visible = false;
+scene.add(tailGlow);
+
+function setCarLights(visible) {
+  headlightL.visible = visible;
+  headlightR.visible = visible;
+  tailGlow.visible = visible;
+}
 
 function pullInFrom(px, pz, want) {
   const dx = want.x - px;
@@ -196,32 +285,47 @@ function updateCamera(dt) {
   const heading = G.player.onFoot ? G.player.heading : G.player.car.heading;
   const fx = Math.sin(heading);
   const fz = Math.cos(heading);
+  const rx = Math.cos(heading); // right vector of the car/player
+  const rz = -Math.sin(heading);
   let want = camTarget;
+
   if (G.screen === 'title') {
     const a = G.time * 0.05;
     camera.position.set(Math.sin(a) * 130, 60, Math.cos(a) * 130);
     camera.lookAt(0, 8, 0);
-    headlight.visible = false;
+    setCarLights(false);
     return;
   }
   if (G.player.onFoot) {
-    want.set(p.x - fx * 7, 3.4, p.z - fz * 7);
+    // On-foot camera a little closer & lower, so Dara's detail reads.
+    want.set(p.x - fx * 5.6, 2.75, p.z - fz * 5.6);
     pullInFrom(p.x, p.z, want);
-    camera.position.lerp(want, Math.min(1, dt * 7));
-    camTarget.set(p.x + fx * 5, 1.4, p.z + fz * 5);
-    headlight.visible = false;
+    camera.position.lerp(want, Math.min(1, dt * 7.5));
+    camTarget.set(p.x + fx * 3.5, 1.35, p.z + fz * 3.5);
+    camera.fov += (55 - camera.fov) * Math.min(1, dt * 6);
+    camera.updateProjectionMatrix();
+    setCarLights(false);
   } else {
     const speed = Math.abs(G.player.car.speed);
-    const back = 12 + speed * 0.18;
-    want.set(p.x - fx * back, 5.2 + speed * 0.05, p.z - fz * back);
+    const back = 11.2 + speed * 0.16;
+    want.set(p.x - fx * back, 4.9 + speed * 0.05, p.z - fz * back);
     pullInFrom(p.x, p.z, want);
-    camera.position.lerp(want, Math.min(1, dt * 4.5));
-    camTarget.set(p.x + fx * 12, 1.6, p.z + fz * 12);
-    camera.fov = 60 + Math.min(10, speed * 0.35) + (input.run() ? 3 : 0);
+    camera.position.lerp(want, Math.min(1, dt * 4.8));
+    camTarget.set(p.x + fx * 12, 1.55, p.z + fz * 12);
+    const targetFov = 58 + Math.min(10, speed * 0.34) + (input.run() ? 3 : 0);
+    camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 8);
     camera.updateProjectionMatrix();
-    headlight.visible = true;
-    headlight.position.set(p.x + fx * 2, 1.1, p.z + fz * 2);
-    headlight.target.position.set(p.x + fx * 24, 0.4, p.z + fz * 24);
+
+    setCarLights(true);
+    const sideOffset = 0.62;
+    headlightL.position.set(p.x + fx * 1.9 - rx * sideOffset, 0.92, p.z + fz * 1.9 - rz * sideOffset);
+    headlightL.target.position.set(p.x + fx * 26 - rx * 1.2, 0.25, p.z + fz * 26 - rz * 1.2);
+
+    headlightR.position.set(p.x + fx * 1.9 + rx * sideOffset, 0.92, p.z + fz * 1.9 + rz * sideOffset);
+    headlightR.target.position.set(p.x + fx * 26 + rx * 1.2, 0.25, p.z + fz * 26 + rz * 1.2);
+
+    tailGlow.position.set(p.x - fx * 2.3, 0.78, p.z - fz * 2.3);
+    tailGlow.intensity = input.handbrake() ? 16 : 7; // brighter when braking/drifting
   }
   if (G.shake > 0.01) {
     camera.position.x += (Math.random() - 0.5) * G.shake * 0.5;
@@ -315,6 +419,7 @@ window.addEventListener('mousedown', () => {
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
