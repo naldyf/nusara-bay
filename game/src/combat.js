@@ -13,73 +13,89 @@ export function createCombat(scene, G) {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
+  // A tracer is a stretched box from the muzzle to the hit point, shown for
+  // a fraction of a second. A pool of them is reused, never allocated.
   const tracers = [];
-  let cooldown = 0;
-  let wantedCooldown = 0;
+  for (let i = 0; i < 8; i++) {
+    const t = new THREE.Mesh(tracerGeo, tracerMat.clone());
+    t.visible = false;
+    scene.add(t);
+    tracers.push({ mesh: t, life: 0 });
+  }
+  let tracerIdx = 0;
+  const hits = new Map();
+
+  // A tracer is a stretched box from the muzzle to the hit point, shown for
+  // a fraction of a second. A pool of them is reused, never allocated.
+  function shootTracer(from, to) {
+    const t = tracers[tracerIdx];
+    tracerIdx = (tracerIdx + 1) % tracers.length;
+    const dir = new THREE.Vector3().subVectors(to, from);
+    const len = dir.length();
+    const mid = new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5);
+    t.mesh.position.copy(mid);
+    t.mesh.lookAt(to);
+    t.mesh.scale.set(1, 1, len);
+    t.mesh.visible = true;
+    t.life = 0.12;
+  }
+
+  // The nearest live cruiser inside the firing cone (0.35 rad, 40 units),
+  // or null. The angle is measured between Dara's facing and the cruiser.
+  function findCruiserInCone(p, fx, fz) {
+    let best = null;
+    let bestD = 40;
+    for (const cruiser of G.police.cruisers) {
+      if (cruiser.dead) continue;
+      const dx = cruiser.pos.x - p.x;
+      const dz = cruiser.pos.z - p.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 40) continue;
+      const angle = Math.abs(Math.atan2(dx * fz - dz * fx, dx * fx + dz * fz));
+      if (angle < 0.35 && d < bestD) {
+        bestD = d;
+        best = cruiser;
+      }
+    }
+    return best;
+  }
+
+  // Three hits disables a cruiser: it is dead, removed from the scene, and
+  // leaves a smoke plume where it was.
+  function disableCruiser(cruiser) {
+    cruiser.dead = true;
+    cruiser.remove();
+    G.police.cruisers = G.police.cruisers.filter((c) => c !== cruiser);
+    G.effects.spawnSmoke(cruiser.pos.x, cruiser.pos.z, 8);
+  }
+
   return {
+    // Fire once per trigger press. The muzzle is Dara's right hand; the
+    // cone is 0.35 radians wide and 40 units deep, so a cruiser has to be
+    // roughly in front of her. Three hits and it is dead.
     update(dt, input) {
-      cooldown -= dt;
-      wantedCooldown -= dt;
-      for (let i = tracers.length - 1; i >= 0; i--) {
-        const t = tracers[i];
-        t.life -= dt * 3;
-        t.mesh.material.opacity = Math.max(0, t.life);
-        if (t.life <= 0) {
-          scene.remove(t.mesh);
-          tracers.splice(i, 1);
-        }
+      for (const t of tracers) {
+        if (t.life <= 0) continue;
+        t.life -= dt;
+        if (t.life <= 0) t.mesh.visible = false;
       }
       if (!G.player.onFoot) return;
-      if (!input.action(ACTION_SHOOT)) return;
-      if (cooldown > 0) return;
-      cooldown = 0.28;
-      this.fireWeapon();
-    },
-    fireWeapon() {
+      if (!input.action(ACTION_SHOOT) && !input.mouseDown()) return;
       const p = G.player.pos;
-      const h = G.player.heading;
-      const fx = Math.sin(h);
-      const fz = Math.cos(h);
-      const from = new THREE.Vector3(p.x, 1.3, p.z);
-      const to = new THREE.Vector3(p.x + fx * 26, 1.3, p.z + fz * 26);
-      // Nearest cruiser inside a narrow cone ahead.
-      let best = null;
-      let bestD = 26;
-      for (const c of G.police.cruisers) {
-        const dx = c.pos.x - p.x;
-        const dz = c.pos.z - p.z;
-        const d = Math.hypot(dx, dz);
-        if (d > 26) continue;
-        const dot = (dx * fx + dz * fz) / (d || 1);
-        if (dot > 0.92 && d < bestD) {
-          bestD = d;
-          best = c;
-        }
-      }
-      if (best) {
-        to.set(best.pos.x, 0.9, best.pos.z);
-        best.health -= 1;
-        G.effects.spawnSmoke(best.pos.x, best.pos.z, 6);
-        if (best.health <= 0) G.police.disableCruiser(best, G);
-      }
-      // A gunshot is heard whether or not it lands: firing always raises the
-      // heat, throttled so one burst is one star. The old code only raised
-      // wanted on a hit, so a player could empty a clip at a cruiser from
-      // just out of range and stay CLEAN.
-      if (wantedCooldown <= 0) {
-        G.police.addWanted(1, 'WANTED — SHOTS FIRED');
-        wantedCooldown = 5;
-      }
-      const len = from.distanceTo(to);
-      const tracer = new THREE.Mesh(tracerGeo, tracerMat.clone());
-      tracer.scale.z = len;
-      tracer.position.copy(from).lerp(to, 0.5);
-      tracer.lookAt(to);
-      scene.add(tracer);
-      tracers.push({ mesh: tracer, life: 1 });
+      const fx = Math.sin(G.player.heading);
+      const fz = Math.cos(G.player.heading);
+      const from = new THREE.Vector3(p.x + fx * 0.5, 1.2, p.z + fz * 0.5);
+      const to = new THREE.Vector3(p.x + fx * 40, 1.2, p.z + fz * 40);
       G.effects.muzzleFlash(from.x, from.y, from.z);
       G.audio.gunshot();
-      G.shake = Math.min(0.5, G.shake + 0.25);
+      shootTracer(from, to);
+      const best = findCruiserInCone(p, fx, fz);
+      if (best) {
+        const n = (hits.get(best) || 0) + 1;
+        hits.set(best, n);
+        G.hud.toast(n >= 3 ? 'CRUISER DISABLED' : `HIT — cruiser ${n}/3`);
+        if (n >= 3) disableCruiser(best);
+      }
     },
   };
 }

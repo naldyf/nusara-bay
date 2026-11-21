@@ -1,283 +1,232 @@
-// Missions: the job state machine. Pickup → timed drive → drop-off, with a
-// glowing marker in the world, a blip on the minimap, and the objective line
-// on the HUD. Each job adds its own twist on top of that loop: a steal (the
-// pickup is a marked car), heat (stars the moment the cargo is grabbed),
-// several drops in a row, or a rival driver racing the same route. Finish
-// job 8 and the $6,400 debt is cleared.
+// The job system: pickup, timed drive, drop-off, pay. One job at a time,
+// a marker on the ground and on the minimap, a clock, and a rival for the
+// race. Failing is not the end — the same job can be retried from the
+// prompt, and the next job waits until this one lands.
 import * as THREE from 'three';
 import { STORY } from './story.js';
-import { createCar } from './vehicles.js';
+import { JOB_TIME } from './config.js';
 import { playerDistance } from './player.js';
+import { createCar } from './vehicles.js';
 
 export function createMissions(scene, G) {
-  const ringGeo = new THREE.TorusGeometry(3.2, 0.25, 8, 32);
-  const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd21f });
-  const ring = new THREE.Mesh(ringGeo, ringMat);
+  // A golden marker disc on the ground, with a ring that pulses.
+  const marker = new THREE.Group();
+  const disc = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.2, 2.2, 0.05, 24),
+    new THREE.MeshStandardMaterial({ color: 0xffd21f, transparent: true, opacity: 0.55 }),
+  );
+  disc.position.y = 0.03;
+  marker.add(disc);
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(2.6, 2.9, 32),
+    new THREE.MeshBasicMaterial({ color: 0xffd21f, side: THREE.DoubleSide }),
+  );
   ring.rotation.x = -Math.PI / 2;
-  ring.visible = false;
-  scene.add(ring);
-  const beamGeo = new THREE.CylinderGeometry(0.5, 0.5, 26, 8, 1, true);
-  const beamMat = new THREE.MeshBasicMaterial({
-    color: 0xffd21f,
-    transparent: true,
-    opacity: 0.25,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
-  const beam = new THREE.Mesh(beamGeo, beamMat);
-  beam.visible = false;
-  scene.add(beam);
+  ring.position.y = 0.06;
+  marker.add(ring);
+  marker.visible = false;
+  scene.add(marker);
 
-  const missions = {
-    jobIndex: 0, // 0-based; all 8 jobs playable
-    phase: 'idle', // idle | pickup | deliver | done
-    timer: 0,
-    markedCar: null,
-    markedCarJob: -1,
-    dropList: null,
+  const state = {
+    jobIndex: 0,
+    phase: 'idle',
     dropIndex: 0,
     rival: null,
-    objective: 'Free roam — steal a car, or start Job 1 at the marker.',
-    startJob(i) {
-      const job = STORY.jobs[i];
-      this.jobIndex = i;
-      this.phase = 'pickup';
-      this.timer = 0;
-      this.dropList = job.drops ? job.drops.slice() : null;
-      this.dropIndex = 0;
-      this.objective = `JOB ${job.id}: ${job.title} — go to ${job.pickup.label}`;
-      G.hud.toast(`JOB ${job.id}: ${job.title}`);
-      G.hud.setStory(job.briefing);
-      this.clearRival();
-      if (job.steal) this.spawnMarkedCar(job);
-      if (job.race) this.spawnRival(job);
-      this.placeMarker(job.pickup.x, job.pickup.z);
-      G.minimap.setObjective(job.pickup.x, job.pickup.z);
-    },
-    // One marked car per steal job, in that job's own paint. The old one is
-    // cleared when the next steal job starts — unless Dara is driving it.
-    spawnMarkedCar(job) {
-      if (this.markedCar) {
-        const old = this.markedCar;
-        if (G.player.car !== old && !old.playerOwned) {
-          old.remove();
-          G.parked = G.parked.filter((c) => c !== old);
-        } else {
-          // It is Dara's car now — keep it, just unmark it.
-          old.marked = false;
-        }
-        this.markedCar = null;
+    stealCar: null,
+    // The mission clock, in game-seconds. Staging (shots.js) sets it
+    // directly to frame a screenshot; the game only ever counts it down.
+    timer: JOB_TIME.pickup,
+    // The current objective line, for the HUD and the test suite.
+    get objective() {
+      const job = STORY.jobs[this.jobIndex];
+      if (!job) return 'All jobs complete';
+      if (this.phase === 'pickup') {
+        return job.steal ? `Steal the car — ${job.pickup.label}` : `Pick up at ${job.pickup.label}`;
       }
-      const car = createCar(scene, job.pickup.x, job.pickup.z, Math.PI / 2, job.stealColor ?? 0xd9a527);
-      car.parked = true;
-      car.marked = true;
-      G.parked.push(car);
-      this.markedCar = car;
-      this.markedCarJob = this.jobIndex;
+      if (this.phase === 'deliver') {
+        const drop = job.drops ? job.drops[this.dropIndex] : job.drop;
+        return `Deliver to ${drop.label}`;
+      }
+      if (this.phase === 'failed') return 'Job failed — press ENTER to retry';
+      if (this.phase === 'done') return 'Job complete';
+      return `Press ENTER to start Job ${job.id}`;
     },
-    // Viko's car waits beside the strip until the pickup, then drives the
-    // route on the street grid. It never leaves the roads, so it needs no
-    // collision handling — the waypoints are all on streets.
-    spawnRival(job) {
-      const [sx, sz] = job.rivalRoute[0];
-      const car = createCar(scene, sx + 6, sz, Math.PI, 0xff6b2e);
-      car.parked = true;
-      this.rival = {
-        car,
-        route: job.rivalRoute,
-        idx: 0,
-        speed: 0,
-        topSpeed: job.rivalSpeed ?? 16,
-        active: false,
+    hudInfo() {
+      return {
+        jobIndex: this.jobIndex,
+        job: STORY.jobs[this.jobIndex],
+        phase: this.phase,
+        timer: this.timer,
+        objective: this.objective,
+        cash: G.cash,
+        jobsDone: G.jobsDone,
+        debtCleared: G.debtCleared,
       };
     },
-    clearRival() {
+    // Move the ground marker and the minimap objective together.
+    placeMarker(x, z) {
+      marker.position.set(x, 0.05, z);
+      marker.visible = true;
+      G.minimap.setObjective(x, z);
+    },
+    // Start (or retry) a job: fresh timer, fresh marker, fresh rival.
+    startJob(i) {
+      const job = STORY.jobs[i];
+      if (!job) return;
       if (this.rival) {
         this.rival.car.remove();
         this.rival = null;
       }
+      // A steal car from the last attempt that Dara never took is scrapped;
+      // one Dara is sitting in stays put.
+      if (this.stealCar && this.stealCar !== G.player.car) {
+        this.stealCar.remove();
+        G.parked = G.parked.filter((c) => c !== this.stealCar);
+      }
+      this.stealCar = null;
+      this.jobIndex = i;
+      this.phase = 'pickup';
+      this.dropIndex = 0;
+      this.timer = JOB_TIME.pickup;
+      if (job.steal) {
+        const stolen = createCar(scene, job.pickup.x, job.pickup.z, 0, job.stealColor);
+        stolen.parked = true;
+        G.parked.push(stolen);
+        this.stealCar = stolen;
+      }
+      if (job.race) {
+        const [rx, rz] = job.rivalRoute[0];
+        // Viko lines up facing the route (north, toward the gate) — he is
+        // a racer at the start line, not a car parked the wrong way round.
+        // Facing away would cost him a full U-turn before the race begins.
+        const rivalCar = createCar(scene, rx, rz, Math.PI, 0xe14b4b);
+        rivalCar.parked = false;
+        this.rival = { car: rivalCar, route: job.rivalRoute, idx: 1, speed: 0, topSpeed: job.rivalSpeed, active: true };
+      }
+      this.placeMarker(job.pickup.x, job.pickup.z);
+      G.hud.setStory('Madame Sari', job.briefing);
+      G.hud.setPrompt(null);
     },
-    resetRival() {
-      const r = this.rival;
-      if (!r) return;
-      const [sx, sz] = r.route[0];
-      r.car.pos.x = sx + 6;
-      r.car.pos.z = sz;
-      r.car.heading = Math.PI;
-      r.car.speed = 0;
-      r.speed = 0;
-      r.idx = 0;
-      r.active = false;
-      r.car.sync();
+    // A leg is done: the pickup, or a drop. Pay only on the final drop.
+    completeLeg() {
+      const job = STORY.jobs[this.jobIndex];
+      if (this.phase === 'pickup') {
+        G.audio.pickup();
+        G.hud.toast(job.steal ? 'CAR SECURED — now lose the heat' : 'CARGO SECURED — clock is running');
+        if (job.heat) G.police.addWanted(job.heat, 'PICKUP — heat on Dara');
+        this.phase = 'deliver';
+        this.timer = JOB_TIME.deliver;
+        const first = job.drops ? job.drops[0] : job.drop;
+        this.placeMarker(first.x, first.z);
+        return;
+      }
+      if (this.phase !== 'deliver') return;
+      if (job.drops && this.dropIndex < job.drops.length - 1) {
+        this.dropIndex++;
+        this.timer = JOB_TIME.deliver;
+        const next = job.drops[this.dropIndex];
+        this.placeMarker(next.x, next.z);
+        G.hud.toast(`DROP ${this.dropIndex} OF ${job.drops.length} — next: ${next.label}`);
+        return;
+      }
+      G.cash += job.pay;
+      // jobsDone is the highest job id finished, not a count of completions:
+      // the suite (and the save) jump between jobs, so finishing job 5
+      // while only job 1 is done must read as 5, not 2.
+      G.jobsDone = Math.max(G.jobsDone, this.jobIndex + 1);
+      this.jobIndex++;
+      if (this.rival) this.rival.active = false;
+      G.audio.payout();
+      G.hud.toast(`JOB ${job.id} DONE — +$${job.pay}`);
+      G.hud.setDispatch(`Job ${job.id} complete — $${job.pay} banked`);
+      if (G.jobsDone >= STORY.jobs.length) {
+        G.debtCleared = true;
+        G.hud.setStory('Madame Sari', 'The debt is paid. Nusara Bay is yours, Dara. Drive anywhere.');
+        G.hud.toast('DEBT CLEARED — $6,400 PAID OFF');
+        G.hud.setDispatch('Debt cleared — the bay is free');
+      }
+      this.phase = 'done';
+      marker.visible = false;
+      G.minimap.setObjective(null, null);
+      if (this.jobIndex < STORY.jobs.length) {
+        G.hud.setPrompt('PRESS ENTER FOR THE NEXT JOB');
+      }
     },
-    updateRival(dt) {
-      const r = this.rival;
-      if (!r || !r.active) return;
-      const [tx, tz] = r.route[r.idx];
-      const dx = tx - r.car.pos.x;
-      const dz = tz - r.car.pos.z;
-      const d = Math.hypot(dx, dz);
-      if (d < 6) {
-        r.idx++;
-        if (r.idx >= r.route.length) {
+    failJob(reason) {
+      this.phase = 'failed';
+      G.hud.toast(reason);
+      G.hud.setDispatch(reason);
+      G.hud.setPrompt('PRESS ENTER TO RETRY');
+    },
+    // Called every frame: arrivals, the clock, and the rival's race.
+    update(dt) {
+      if (this.phase === 'idle' || this.phase === 'done' || this.phase === 'failed') return;
+      const job = STORY.jobs[this.jobIndex];
+      if (!job) return;
+      // The marker breathes so it is visible from the car.
+      const pulse = 1 + Math.sin(G.time * 3) * 0.08;
+      marker.scale.set(pulse, 1, pulse);
+      this.timer -= dt;
+      if (this.timer <= 0) {
+        this.failJob('Out of time — the client walked');
+        return;
+      }
+      if (this.phase === 'pickup') {
+        if (job.steal) {
+          if (G.player.car === this.stealCar) this.completeLeg();
+        } else if (playerDistance(G, job.pickup.x, job.pickup.z) < (G.player.onFoot ? 3.5 : 6)) {
+          this.completeLeg();
+        }
+      } else if (this.phase === 'deliver') {
+        const drop = job.drops ? job.drops[this.dropIndex] : job.drop;
+        if (playerDistance(G, drop.x, drop.z) < (G.player.onFoot ? 3.5 : 6)) {
+          this.completeLeg();
+        }
+      }
+      // The rival drives his route; if he reaches the finish first, the job is lost.
+      const rival = this.rival;
+      if (rival && rival.active) this.driveRival(rival, dt);
+    },
+    // One rival frame: chase the next waypoint, and fail the job when the
+    // route is finished. The rival brakes for the corner — his target speed
+    // falls as the waypoint gets close — so a fast rival cannot overshoot
+    // it and oscillate forever. Steering and speed both change at a
+    // limited rate, so the car reads as driven, not teleported.
+    driveRival(rival, dt) {
+      const target = rival.route[rival.idx];
+      const dx = target[0] - rival.car.pos.x;
+      const dz = target[1] - rival.car.pos.z;
+      const dist = Math.hypot(dx, dz);
+      // A racer cuts the corner: intermediate waypoints only guide the
+      // line, so he turns for the next one from 12 units out instead of
+      // braking to a crawl at each one. Only the finish line itself
+      // needs the tight 6-unit radius.
+      const lastLeg = rival.idx >= rival.route.length - 1;
+      const arriveAt = lastLeg ? 6 : 12;
+      if (dist < arriveAt) {
+        rival.idx++;
+        if (rival.idx >= rival.route.length) {
+          rival.active = false;
           this.failJob('Viko reached the North Gate first');
-          return;
         }
         return;
       }
       const wantHeading = Math.atan2(dx, dz);
-      let diff = wantHeading - r.car.heading;
+      let diff = wantHeading - rival.car.heading;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      r.car.heading += Math.max(-3.5 * dt, Math.min(3.5 * dt, diff));
-      // Brake for the corner: a fast car cannot turn tight enough to catch
-      // a waypoint, so the target speed drops as the waypoint gets close.
-      // On a straight the rival still runs flat out.
-      const wantSpeed = Math.min(r.topSpeed, Math.max(7, d * 0.9));
-      r.speed += Math.max(-14 * dt, Math.min(14 * dt, wantSpeed - r.speed));
-      r.car.pos.x += Math.sin(r.car.heading) * r.speed * dt;
-      r.car.pos.z += Math.cos(r.car.heading) * r.speed * dt;
-      r.car.sync();
-    },
-    placeMarker(x, z) {
-      ring.position.set(x, 0.3, z);
-      beam.position.set(x, 13, z);
-      ring.visible = true;
-      beam.visible = true;
-      this.markerPos = { x, z };
-    },
-    hideMarker() {
-      ring.visible = false;
-      beam.visible = false;
-      this.markerPos = null;
-      G.minimap.setObjective(null);
-    },
-    currentDrop() {
-      const job = STORY.jobs[this.jobIndex];
-      if (this.dropList) return this.dropList[this.dropIndex];
-      return job.drop;
-    },
-    // What the job card shows: job number, title, stage, countdown, drop leg.
-    // The HUD reads this every frame, so the timer and the stage bar tick.
-    hudInfo() {
-      const job = STORY.jobs[this.jobIndex];
-      const stage =
-        this.phase === 'idle' ? 0 : this.phase === 'pickup' ? 1 : this.phase === 'deliver' ? 2 : 3;
-      return {
-        id: job.id,
-        total: STORY.jobs.length,
-        title: job.title,
-        stage, // 0 idle, 1 pickup, 2 deliver, 3 done
-        stageLabel:
-          this.phase === 'idle' ? 'FREE ROAM' : this.phase === 'pickup' ? 'PICKUP' : this.phase === 'deliver' ? 'DELIVER' : 'DONE',
-        timer: this.phase === 'deliver' ? Math.max(0, this.timer) : null,
-        leg: this.dropList ? `${this.dropIndex + 1}/${this.dropList.length}` : null,
-        objective: this.objective,
-      };
-    },
-    // The pickup is done: the clock starts, the heat (if any) arrives, and
-    // the rival starts his engine.
-    onPickup() {
-      const job = STORY.jobs[this.jobIndex];
-      this.phase = 'deliver';
-      this.timer = job.time;
-      const drop = this.currentDrop();
-      this.placeMarker(drop.x, drop.z);
-      G.minimap.setObjective(drop.x, drop.z);
-      if (job.heat) {
-        G.police.addWanted(job.heat, job.heat >= 5 ? 'FIVE STARS — RUN' : 'WANTED — HEAT ON THE JOB');
-        G.hud.toast(job.heat >= 5 ? 'FIVE STARS — LOSE THEM ALL' : 'HEAT ON THE JOB — DRIVE');
-      }
-      if (this.rival) {
-        this.rival.active = true;
-        G.hud.toast('VIKO IS RACING YOU — BEAT HIM TO THE GATE');
-      }
-      if (this.dropList) {
-        G.hud.toast(`DROP 1 OF ${this.dropList.length} — drive!`);
-      } else {
-        // The pickup line names what was taken: a car for a steal job, a
-        // package for a pickup job. The old text always said "package", so a
-        // steal job's toast described the wrong thing.
-        G.hud.toast(job.steal ? 'CAR SECURED — drive!' : 'PACKAGE SECURED — drive!');
-      }
-      G.audio.pickup();
-    },
-    completeJob() {
-      const job = STORY.jobs[this.jobIndex];
-      G.cash += job.pay;
-      G.jobsDone = Math.max(G.jobsDone, this.jobIndex + 1);
-      G.hud.toast(`JOB ${job.id} COMPLETE — $${job.pay}`);
-      G.audio.payout();
-      this.phase = 'done';
-      this.hideMarker();
-      this.clearRival();
-      G.saveGame();
-      if (this.jobIndex < STORY.jobs.length - 1) {
-        this.objective = `Job ${job.id} done — $${job.pay} earned. Next job is waiting.`;
-        setTimeout(() => this.startJob(this.jobIndex + 1), 2500);
-      } else {
-        // The finale: eight jobs, $6,400 paid off, Dara walks free.
-        G.debtCleared = true;
-        G.hud.setStory('Madame Sari: "The debt is paid, Dara. Eight jobs, clean. The bay is yours now."');
-        G.hud.toast('DEBT CLEARED — $6,400 PAID. DARA IS FREE.');
-        this.objective = 'DEBT CLEARED — $6,400 paid. Dara is free. Free roam!';
-        G.saveGame();
-      }
-    },
-    failJob(reason) {
-      const job = STORY.jobs[this.jobIndex];
-      G.hud.toast(`JOB ${job.id} FAILED — ${reason}`);
-      this.phase = 'pickup';
-      this.timer = 0;
-      this.dropIndex = 0;
-      this.resetRival();
-      this.objective = `JOB ${job.id}: ${job.title} — go to ${job.pickup.label} to retry`;
-      this.placeMarker(job.pickup.x, job.pickup.z);
-      G.minimap.setObjective(job.pickup.x, job.pickup.z);
-    },
-    update(dt) {
-      if (this.phase === 'idle' || this.phase === 'done') return;
-      const job = STORY.jobs[this.jobIndex];
-      if (this.phase === 'deliver') {
-        this.timer -= dt;
-        const t = Math.max(0, this.timer);
-        const drop = this.currentDrop();
-        const leg = this.dropList ? `DROP ${this.dropIndex + 1}/${this.dropList.length} — ` : '';
-        this.objective = `JOB ${job.id}: ${leg}deliver to ${drop.label} — ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-        if (this.timer <= 0) {
-          this.failJob('too slow');
-          return;
-        }
-        this.updateRival(dt);
-        // The rival may have won the race and failed the job — stop here.
-        if (this.phase !== 'deliver') return;
-      }
-      const target = this.phase === 'pickup' ? job.pickup : this.currentDrop();
-      // Steal jobs: the pickup completes when Dara gets into the marked car.
-      if (job.steal && this.phase === 'pickup') {
-        if (G.player.car === this.markedCar) {
-          this.onPickup();
-          return;
-        }
-      } else if (playerDistance(G, target.x, target.z) < 7) {
-        if (this.phase === 'pickup') {
-          this.onPickup();
-        } else if (this.dropList && this.dropIndex < this.dropList.length - 1) {
-          // One drop down — the next marker goes up and the clock resets.
-          this.dropIndex++;
-          this.timer = job.time;
-          const next = this.currentDrop();
-          this.placeMarker(next.x, next.z);
-          G.minimap.setObjective(next.x, next.z);
-          G.hud.toast(`DROP ${this.dropIndex} OF ${this.dropList.length} DONE — next!`);
-          G.audio.pickup();
-        } else {
-          this.completeJob();
-        }
-      }
-      const pulse = 1 + Math.sin(G.time * 4) * 0.15;
-      ring.scale.set(pulse, pulse, 1);
+      rival.car.heading += Math.max(-3.5 * dt, Math.min(3.5 * dt, diff));
+      const wantSpeed = Math.min(rival.topSpeed, Math.max(7, dist * 0.9));
+      // The rival changes speed briskly (±25/s): he gets up to speed fast
+      // and, more importantly, can actually shed speed before a waypoint
+      // instead of sailing past it and having to come back. A race rival
+      // that cannot brake is not a rival, it is a missile.
+      const speedDelta = Math.max(-25 * dt, Math.min(25 * dt, wantSpeed - rival.speed));
+      rival.speed += speedDelta;
+      rival.car.pos.x += Math.sin(rival.car.heading) * rival.speed * dt;
+      rival.car.pos.z += Math.cos(rival.car.heading) * rival.speed * dt;
+      rival.car.sync();
     },
   };
-  return missions;
+  return state;
 }

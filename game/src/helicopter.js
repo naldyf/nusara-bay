@@ -4,150 +4,115 @@
 // against the dusk sky instead of hiding in it.
 import * as THREE from 'three';
 
+// One mesh, placed, added to a parent. Returns it so the caller can keep
+// the moving parts (rotor, tail rotor, beacon, cone, spotlight).
+function part(geo, mat, parent, x, y, z) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  parent.add(m);
+  return m;
+}
+
 export function createHelicopter(scene) {
   const group = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(2.2, 1.1, 4.2),
-    new THREE.MeshStandardMaterial({
-      // A pale fuselage so the helicopter reads against the purple sky
-      // instead of dissolving into it. The old grey (0x8a8fa0) was too dark
-      // at this sun angle; the pale body also carries the red belt and beacon.
-      color: 0xb9c0cc,
-      roughness: 0.4,
-      metalness: 0.4,
-      emissive: 0x8a8a9a,
-      emissiveIntensity: 1.0,
-    }),
-  );
+  const pale = new THREE.MeshStandardMaterial({ color: 0xb9c0cc, roughness: 0.4, metalness: 0.4 });
+  const grey = new THREE.MeshStandardMaterial({ color: 0x9aa0ac, roughness: 0.5, metalness: 0.4 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x222226, roughness: 0.5, metalness: 0.6 });
+  const glass = new THREE.MeshPhysicalMaterial({ color: 0x101824, roughness: 0.08, metalness: 0.45, clearcoat: 1 });
+
+  // A pale fuselage so the helicopter reads against the purple sky instead
+  // of dissolving into it. The old grey (0x8a8fa0) was too dark at this sun
+  // angle; the pale body also carries the red belt and beacon.
+  const body = part(new THREE.BoxGeometry(2.2, 1.1, 4.2), pale, group, 0, 0, 0);
   body.castShadow = true;
-  group.add(body);
-  // A red belt around the whole body — slightly larger than the body on
-  // every side, so the stripe reads from the front, the flank and above,
-  // instead of hiding flush inside the body's faces.
-  const stripe = new THREE.Mesh(
-    new THREE.BoxGeometry(2.3, 0.5, 4.3),
-    new THREE.MeshStandardMaterial({
-      color: 0xff3344,
-      roughness: 0.5,
-      emissive: 0xff2233,
-      emissiveIntensity: 1.6,
-    }),
+  part(new THREE.BoxGeometry(0.7, 0.7, 4.6), grey, group, 0, 0.2, -4.2);
+  part(new THREE.BoxGeometry(0.2, 1.6, 1.2), grey, group, 0, 0.9, -6.2);
+  part(new THREE.BoxGeometry(1.8, 0.7, 1.6), glass, group, 0, 0.4, 1.4);
+  part(
+    new THREE.BoxGeometry(2.24, 0.25, 4.24),
+    new THREE.MeshStandardMaterial({ color: 0xd92626, roughness: 0.5, metalness: 0.3 }),
+    group,
+    0,
+    -0.1,
+    0,
   );
-  stripe.position.set(0, 0.1, 0);
-  group.add(stripe);
-  const beacon = new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 8, 6),
-    new THREE.MeshBasicMaterial({ color: 0xff2222 }),
+  const beacon = part(
+    new THREE.SphereGeometry(0.18, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff2222, emissiveIntensity: 3 }),
+    group,
+    0,
+    0.75,
+    0,
   );
-  beacon.position.set(0, 0.95, 0);
-  group.add(beacon);
-  const tail = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.5, 3.4),
-    new THREE.MeshStandardMaterial({ color: 0xb9c0cc, roughness: 0.5 }),
-  );
-  tail.position.set(0, 0.2, -3.4);
-  group.add(tail);
-  const rotor = new THREE.Mesh(
-    new THREE.BoxGeometry(9, 0.08, 0.5),
-    new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 }),
-  );
-  rotor.position.y = 0.8;
+  part(new THREE.CylinderGeometry(0.12, 0.12, 0.5, 6), dark, group, 0, 0.8, 0);
+
+  // The main rotor: two crossed blades on a mast.
+  const rotor = new THREE.Group();
+  rotor.position.y = 1.05;
+  const bladeGeo = new THREE.BoxGeometry(7.2, 0.06, 0.4);
+  part(bladeGeo, dark, rotor, 0, 0, 0);
+  const bladeB = part(bladeGeo, dark, rotor, 0, 0, 0);
+  bladeB.rotation.y = Math.PI / 2;
   group.add(rotor);
-  // A blurred rotor disc: the thin box alone reads as a stick in a still
-  // frame; the translucent disc is what a helicopter rotor looks like in a
-  // photograph, and it catches the sun.
-  const disc = new THREE.Mesh(
-    new THREE.CircleGeometry(4.6, 24),
-    new THREE.MeshBasicMaterial({
-      color: 0x222226,
-      transparent: true,
-      opacity: 0.25,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    }),
-  );
-  disc.rotation.x = -Math.PI / 2;
-  disc.position.y = 0.82;
-  group.add(disc);
-  // Searchlight: a translucent cone plus a real spotlight aimed at the player.
-  const cone = new THREE.Mesh(
-    new THREE.ConeGeometry(3.2, 26, 16, 1, true),
-    new THREE.MeshBasicMaterial({
-      color: 0xfff2b0,
-      transparent: true,
-      opacity: 0.22,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    }),
-  );
-  cone.position.y = -13;
-  cone.rotation.x = Math.PI;
-  group.add(cone);
-  const spot = new THREE.SpotLight(0xfff2b0, 300, 60, 0.32, 0.5, 1.2);
+
+  // The tail rotor: two small crossed blades on the fin.
+  const tailRotor = new THREE.Group();
+  tailRotor.position.set(0.5, 0.6, -6.4);
+  const tailBladeGeo = new THREE.BoxGeometry(1.6, 0.08, 0.25);
+  part(tailBladeGeo, dark, tailRotor, 0, 0, 0);
+  const tailBladeB = part(tailBladeGeo, dark, tailRotor, 0, 0, 0);
+  tailBladeB.rotation.x = Math.PI / 2;
+  group.add(tailRotor);
+
+  // The searchlight: a cone mesh plus a real spotlight, both tracking the
+  // player. The cone is additive and faint — it reads as a beam, not a wall.
+  const coneMat = new THREE.MeshBasicMaterial({
+    color: 0xfff2c6,
+    transparent: true,
+    opacity: 0.12,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const cone = part(new THREE.ConeGeometry(3.5, 14, 16, 1, true), coneMat, group, 0, -7, 0);
+  const spot = new THREE.SpotLight(0xfff2c6, 80, 40, 0.35, 0.5, 1.2);
+  spot.position.set(0, -0.5, 0);
   group.add(spot);
   group.add(spot.target);
-  // The pool of light on the ground under the beam — the cone alone floats
-  // in the air; the pool anchors it to the street.
-  const poolTex = (() => {
-    const c = document.createElement('canvas');
-    c.width = 128;
-    c.height = 128;
-    const g = c.getContext('2d');
-    const grad = g.createRadialGradient(64, 64, 2, 64, 64, 64);
-    grad.addColorStop(0, 'rgba(255,242,176,0.9)');
-    grad.addColorStop(1, 'rgba(255,242,176,0)');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, 128, 128);
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    return t;
-  })();
-  const pool = new THREE.Mesh(
-    new THREE.CircleGeometry(5, 24),
-    new THREE.MeshBasicMaterial({
-      map: poolTex,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      opacity: 0.6,
-    }),
-  );
-  pool.rotation.x = -Math.PI / 2;
-  pool.position.y = 0.07;
-  pool.visible = false;
-  scene.add(pool);
+
   group.visible = false;
   scene.add(group);
-  return {
+
+  const heli = {
     mesh: group,
+    rotor,
+    tailRotor,
+    cone,
+    spot,
+    beacon,
+    // Hover above the player, searchlight on them, rotors spinning. The
+    // helicopter drifts toward the player and holds a fixed height above
+    // the ground, so it never clips a tower.
     update(dt, G) {
-      const active = G.police.wanted >= 4;
-      group.visible = active;
-      pool.visible = active;
-      if (!active) return;
+      const wanted = G.police.wanted;
+      const show = wanted >= 4;
+      this.mesh.visible = show;
+      if (!show) return;
       const p = G.player.onFoot ? G.player.pos : G.player.car.pos;
-      // Hang just ahead of the player, low enough to stay in the chase
-      // camera's frame, so the body — not only the beam — is on screen.
-      // The old hover (y 17) put the body above the top of the frame in
-      // both cameras: the chase cam looks down at the car, and the on-foot
-      // cam is lower still, so at 17 the body was out of shot and only the
-      // 26-unit cone showed. At 9 the body sits in the upper third of
-      // either frame, clear of the wanted stars, and the cone still reaches
-      // the ground. Low is also the look: the module's own header says the
-      // helicopter "flies low and close".
-      const heading = G.player.onFoot ? G.player.heading : G.player.car.heading;
-      const tx = p.x + Math.sin(heading) * 20;
-      const tz = p.z + Math.cos(heading) * 20;
-      group.position.x += (tx - group.position.x) * Math.min(1, dt * 0.8);
-      group.position.z += (tz - group.position.z) * Math.min(1, dt * 0.8);
-      group.position.y = 9 + Math.sin(G.time * 0.7) * 1.2;
-      group.rotation.y = Math.atan2(p.x - group.position.x, p.z - group.position.z);
-      rotor.rotation.y += dt * 22;
-      beacon.scale.setScalar(1 + 0.35 * Math.sin(G.time * 6));
-      // The light pool stays glued to the ground under the player, tracking
-      // the beam's target rather than the helicopter's bob.
-      pool.position.set(p.x, 0.07, p.z);
-      spot.target.position.set(p.x - group.position.x, -26, p.z - group.position.z);
+      const tx = p.x + 6;
+      const tz = p.z - 6;
+      this.mesh.position.x += (tx - this.mesh.position.x) * Math.min(1, dt * 1.2);
+      this.mesh.position.z += (tz - this.mesh.position.z) * Math.min(1, dt * 1.2);
+      this.mesh.position.y = 12 + Math.sin(G.time * 0.8) * 0.8;
+      this.mesh.rotation.y = Math.atan2(p.x - this.mesh.position.x, p.z - this.mesh.position.z);
+      this.rotor.rotation.y += dt * 22;
+      this.tailRotor.rotation.x += dt * 30;
+      this.beacon.material.emissiveIntensity = Math.floor(G.time * 4) % 2 === 0 ? 3 : 0.2;
+      // Point the cone and the spotlight at the player.
+      this.spot.target.position.set(p.x - this.mesh.position.x, -this.mesh.position.y, p.z - this.mesh.position.z);
+      this.cone.lookAt(p.x, 0, p.z);
+      this.cone.rotateX(-Math.PI / 2);
     },
   };
+  return heli;
 }

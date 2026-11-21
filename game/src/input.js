@@ -1,5 +1,6 @@
-// Keyboard and mouse. The game reads plain state every frame; actions are
-// edge-triggered (pressed this frame) so E to steal and F to shoot fire once.
+// Keyboard and mouse. Movement is plain held state, read every frame;
+// actions are edge-triggered — pressed this frame only — so E to steal and
+// F to shoot fire once per press instead of once per frame.
 export const ACTION_ENTER = 'enter';
 export const ACTION_SHOOT = 'shoot';
 export const ACTION_PAUSE = 'pause';
@@ -7,7 +8,7 @@ export const ACTION_CONFIRM = 'confirm';
 export const ACTION_RADIO = 'radio';
 export const ACTION_NOS = 'nos';
 
-const KEYMAP = {
+const KEY_TO_ACTION = {
   KeyE: ACTION_ENTER,
   KeyF: ACTION_SHOOT,
   Escape: ACTION_PAUSE,
@@ -17,79 +18,82 @@ const KEYMAP = {
   ShiftRight: ACTION_NOS,
 };
 
-export function createInput() {
-  const keys = new Set();
-  const pressed = new Set();
-  let mouseDown = false;
-  let mousePressed = false;
+const SCROLL_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'];
 
-  function onKeyDown(e) {
+export function createInput() {
+  const held = new Set();
+  const fresh = new Set();
+  let mouseHeld = false;
+  let mouseFresh = false;
+
+  function press(e) {
     if (e.repeat) return;
-    keys.add(e.code);
-    const a = KEYMAP[e.code];
-    if (a) pressed.add(a);
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
-      e.preventDefault();
-    }
+    held.add(e.code);
+    const mapped = KEY_TO_ACTION[e.code];
+    if (mapped) fresh.add(mapped);
+    if (SCROLL_KEYS.includes(e.code)) e.preventDefault();
   }
-  function onKeyUp(e) {
-    keys.delete(e.code);
+  function release(e) {
+    held.delete(e.code);
   }
-  window.addEventListener('keydown', onKeyDown);
-  window.addEventListener('keyup', onKeyUp);
-  // Losing the window (alt-tab, click out) must not leave a key stuck down:
-  // clear everything, so the car cannot drive itself when focus returns.
-  window.addEventListener('blur', () => {
-    keys.clear();
-    pressed.clear();
-    mousePressed = false;
-  });
+  function clearAll() {
+    held.clear();
+    fresh.clear();
+    mouseFresh = false;
+  }
+  window.addEventListener('keydown', press);
+  window.addEventListener('keyup', release);
+  // Alt-tabbing away must not leave a key stuck: clear everything on blur,
+  // so the car cannot drive itself when focus comes back.
+  window.addEventListener('blur', clearAll);
   window.addEventListener('mousedown', () => {
-    mouseDown = true;
-    mousePressed = true;
+    mouseHeld = true;
+    mouseFresh = true;
   });
   window.addEventListener('mouseup', () => {
-    mouseDown = false;
+    mouseHeld = false;
   });
 
+  function down(code) {
+    return held.has(code);
+  }
+
   return {
-    // Held movement: -1..1 on each axis (WASD and arrows).
+    // Held movement, -1..1 on each axis (WASD and arrows).
     axis() {
-      const x = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
-      const y = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
+      const x = (down('KeyD') || down('ArrowRight') ? 1 : 0) - (down('KeyA') || down('ArrowLeft') ? 1 : 0);
+      const y = (down('KeyW') || down('ArrowUp') ? 1 : 0) - (down('KeyS') || down('ArrowDown') ? 1 : 0);
       return { x, y };
     },
     handbrake() {
-      return keys.has('Space');
+      return down('Space');
     },
     run() {
-      return keys.has('ShiftLeft') || keys.has('ShiftRight');
+      return down('ShiftLeft') || down('ShiftRight');
     },
     mouseDown() {
-      return mouseDown;
+      return mouseHeld;
     },
-    // True once, the frame the action happened.
+    // True once, on the frame the action happened. A click counts as shoot.
     action(name) {
-      return pressed.has(name) || (name === ACTION_SHOOT && mousePressed);
+      return fresh.has(name) || (name === ACTION_SHOOT && mouseFresh);
     },
     endFrame() {
-      pressed.clear();
-      mousePressed = false;
+      fresh.clear();
+      mouseFresh = false;
     },
-    // Empty every held key and pending action — used on pause/resume so a
-    // key held through the pause cannot stick the car in a turn.
+    // Drop every held key and pending action — used around pause/resume so
+    // a key held through the pause cannot stick the car in a turn.
     clear() {
-      keys.clear();
-      pressed.clear();
-      mousePressed = false;
+      clearAll();
     },
-    // Test/autopilot hook: pretend a key is held.
-    fake(code, down) {
-      if (down) keys.add(code);
-      else keys.delete(code);
+    // Staging hook: pretend a key is held down.
+    fake(code, isDown) {
+      if (isDown) held.add(code);
+      else held.delete(code);
     },
     fakeAction(name) {
-      pressed.add(name);
+      fresh.add(name);
     },
   };
 }

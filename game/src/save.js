@@ -1,39 +1,55 @@
-// Saving: one localStorage slot. Cash, the job reached, and which jobs are
-// done. Loading a save restores the same numbers the title screen shows.
+// One localStorage slot holds the whole campaign: cash, which job Dara
+// reached, how many are done, and health. A save that names a job that
+// does not exist is refused, so a corrupt or future save starts fresh
+// instead of starting a job the game never had.
 import { SAVE_KEY } from './config.js';
 
-export function saveGame(G) {
+// Read the raw slot, tolerating a missing key and a storage error alike.
+function readSlot() {
   try {
-    window.localStorage.setItem(
-      SAVE_KEY,
-      JSON.stringify({
-        cash: G.cash,
-        jobIndex: G.missions.jobIndex,
-        jobsDone: G.jobsDone,
-        health: G.health,
-        savedAt: Date.now(),
-      }),
-    );
+    return window.localStorage.getItem(SAVE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeSlot(text) {
+  try {
+    window.localStorage.setItem(SAVE_KEY, text);
     return true;
   } catch {
     return false;
   }
 }
 
-export function loadGame() {
+// A save is valid when it names numbers for cash and jobIndex, and the job
+// index is one of the eight jobs. Anything else is treated as no save.
+function parseSave(raw) {
+  if (!raw) return null;
+  let data;
   try {
-    const raw = window.localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (typeof data.cash !== 'number' || typeof data.jobIndex !== 'number') return null;
-    // A save from a corrupt or future build must not start a job that does
-    // not exist: the game has 8 jobs (indices 0–7), so anything outside that
-    // range is rejected and the title screen starts fresh instead.
-    if (!Number.isInteger(data.jobIndex) || data.jobIndex < 0 || data.jobIndex > 7) return null;
-    return data;
+    data = JSON.parse(raw);
   } catch {
     return null;
   }
+  if (typeof data.cash !== 'number' || typeof data.jobIndex !== 'number') return null;
+  if (!Number.isInteger(data.jobIndex) || data.jobIndex < 0 || data.jobIndex > 7) return null;
+  return data;
+}
+
+export function saveGame(G) {
+  const record = {
+    cash: G.cash,
+    jobIndex: G.missions.jobIndex,
+    jobsDone: G.jobsDone,
+    health: G.health,
+    savedAt: Date.now(),
+  };
+  return writeSlot(JSON.stringify(record));
+}
+
+export function loadGame() {
+  return parseSave(readSlot());
 }
 
 export function hasSave() {

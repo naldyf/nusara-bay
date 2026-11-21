@@ -14,156 +14,129 @@ export function createPolice(scene, rng, city) {
     roadblockTimer: 0,
     addWanted(n, reason) {
       const before = this.wanted;
-      this.wanted = Math.max(0, Math.min(5, this.wanted + n));
-      if (this.wanted > before) {
-        this.decayTimer = 0;
+      this.wanted = Math.min(5, this.wanted + n);
+      this.decayTimer = 0;
+      if (this.wanted > before && reason) {
+        if (window.__nusara) window.__nusara.dispatch = reason;
       }
     },
+    // Spawn a cruiser at a random bearing around the player, within the
+    // chase radius, and register it as an active unit.
     spawnCruiser(G) {
-      const p = G.player.onFoot ? G.player.pos : G.player.car.pos;
       const a = rng.range(0, Math.PI * 2);
+      const p = G.player.onFoot ? G.player.pos : G.player.car.pos;
       const x = p.x + Math.sin(a) * POLICE.spawnDist;
       const z = p.z + Math.cos(a) * POLICE.spawnDist;
-      const cruiser = createCar(scene, x, z, a, 0x1a1a22, true);
-      cruiser.health = 3;
-      cruiser.ramCooldown = 0;
-    cruiser.flashPhase = this.cruisers.length % 2; // alternate the light-bar
-    // flash so two cruisers never blink in perfect sync — the bar reads as
-    // separate vehicles, not one light copied twice.
+      const cruiser = createCar(scene, x, z, a, 0x222630, true);
+      cruiser.parked = false;
       this.cruisers.push(cruiser);
       return cruiser;
     },
-    spawnRoadblock(G) {
-      const p = G.player.car ? G.player.car.pos : G.player.pos;
-      const heading = G.player.car ? G.player.car.heading : G.player.heading;
-      const fx = Math.sin(heading);
-      const fz = Math.cos(heading);
-      const cx = p.x + fx * 26;
-      const cz = p.z + fz * 26;
-      const block = [];
-      for (const off of [-3.4, 0, 3.4]) {
-        const car = createCar(scene, cx - fz * off, cz + fx * off, heading + Math.PI / 2, 0x1a1a22, true);
-        car.health = 3;
-        car.parked = true;
-        block.push(car);
-      }
-      this.roadblocks.push({ cars: block, ttl: 14 });
-    },
-    // Rows for the dispatch panel: callsign, live distance in metres, and
-    // what that unit is doing right now. The HUD reads this every frame, so
-    // the numbers tick — a panel that never moves reads as a mockup.
+    // Bring the fleet up to the strength the wanted level demands.
     dispatchUnits(G) {
-      const p = G.player.onFoot ? G.player.pos : G.player.car.pos;
-      const playerSpeed = G.player.car ? Math.abs(G.player.car.speed) : 0;
-      const rows = this.cruisers.map((c, i) => {
-        const dist = Math.round(Math.hypot(c.pos.x - p.x, c.pos.z - p.z));
-        return {
-          callsign: `NCPD-0${i + 1}`,
-          dist,
-          tag: dist < 6 && playerSpeed > 8 ? 'RAMMING' : 'PURSUE',
-        };
-      });
-      if (this.roadblocks.length) {
-        const b = this.roadblocks[0].cars[0];
-        rows.push({
-          callsign: 'BLOCK',
-          dist: Math.round(Math.hypot(b.pos.x - p.x, b.pos.z - p.z)),
-          tag: 'ROADBLOCK',
-        });
+      const need = Math.min(POLICE.maxCruisers, this.wanted);
+      while (this.cruisers.length < need) this.spawnCruiser(G);
+    },
+    // One cruiser, one frame: steer at the player, accelerate, strobe the
+    // light bar, and ram on contact. Returns 'busted' when the bust lands,
+    // true when the cruiser is touching the player, false otherwise.
+    chaseOne(cruiser, dt, G, playerPos) {
+      const dx = playerPos.x - cruiser.pos.x;
+      const dz = playerPos.z - cruiser.pos.z;
+      const dist = Math.hypot(dx, dz) || 1;
+      const targetHeading = Math.atan2(dx, dz);
+      let diff = targetHeading - cruiser.heading;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      cruiser.heading += Math.max(-1.6 * dt, Math.min(1.6 * dt, diff));
+      cruiser.speed = Math.min(POLICE.cruiserTop, cruiser.speed + POLICE.cruiserAccel * dt);
+      cruiser.pos.x += Math.sin(cruiser.heading) * cruiser.speed * dt;
+      cruiser.pos.z += Math.cos(cruiser.heading) * cruiser.speed * dt;
+      // Strobe the light bar — the red/blue alternation is the chase's
+      // visual signature, and the colour flip every 100 ms is the beat.
+      if (cruiser.mesh.userData.lightBar) {
+        const on = Math.floor(G.time * 10) % 2 === 0;
+        cruiser.mesh.userData.lightBar.material.emissive.setHex(on ? 0xff2244 : 0x2244ff);
       }
-      return rows;
+      if (dist >= 2.6) {
+        cruiser.sync();
+        return false;
+      }
+      if (G.player.onFoot) {
+        this.bustedTimer += dt;
+        if (this.bustedTimer > POLICE.bustedTime) {
+          G.gameOver('BUSTED — the NCPD caught you');
+          return 'busted';
+        }
+        cruiser.sync();
+        return true;
+      }
+      const hit = Math.min(30, cruiser.speed * 0.4);
+      G.damage(hit);
+      G.shake = Math.min(1, G.shake + 0.3);
+      cruiser.speed *= 0.4;
+      cruiser.pos.x -= Math.sin(cruiser.heading) * 3;
+      cruiser.pos.z -= Math.cos(cruiser.heading) * 3;
+      G.audio.gunshot();
+      cruiser.sync();
+      return true;
     },
     update(dt, G) {
-      const p = G.player.onFoot ? G.player.pos : G.player.car.pos;
-      const playerSpeed = G.player.car ? Math.abs(G.player.car.speed) : 0;
-      // Cruiser count follows the wanted level.
-      const want = this.wanted === 0 ? 0 : Math.min(1 + Math.floor(this.wanted / 2), POLICE.maxCruisers);
-      while (this.cruisers.length < want) this.spawnCruiser(G);
-      while (this.cruisers.length > want) {
-        const c = this.cruisers.pop();
-        c.remove();
+      if (this.wanted === 0) return;
+      this.dispatchUnits(G);
+      const playerPos = G.player.onFoot ? G.player.pos : G.player.car.pos;
+      // A cruiser rams by steering at the player; the faster the cruiser,
+      // the harder the hit. The camera shake and damage flash sell it.
+      let touching = false;
+      for (const cruiser of [...this.cruisers]) {
+        if (cruiser.dead) continue;
+        const result = this.chaseOne(cruiser, dt, G, playerPos);
+        if (result === 'busted') return;
+        if (result) touching = true;
       }
-      // Roadblocks at 3+ stars, refreshed ahead of the player.
-      this.roadblockTimer -= dt;
-      if (this.wanted >= 3 && this.roadblockTimer <= 0 && this.roadblocks.length < 1) {
-        this.spawnRoadblock(G);
-        this.roadblockTimer = 9;
-      }
-      for (const block of this.roadblocks) block.ttl -= dt;
-      while (this.roadblocks.length && this.roadblocks[0].ttl <= 0) {
-        for (const c of this.roadblocks.shift().cars) c.remove();
-      }
-      // Pursuit: steer toward the player, ram on contact.
-      for (const c of this.cruisers) {
-        c.ramCooldown -= dt;
-        const dx = p.x - c.pos.x;
-        const dz = p.z - c.pos.z;
-        const dist = Math.hypot(dx, dz);
-        const wantHeading = Math.atan2(dx, dz);
-        let diff = wantHeading - c.heading;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        c.heading += Math.max(-2.4 * dt, Math.min(2.4 * dt, diff));
-        const top = POLICE.cruiserTop + this.wanted * 0.7;
-        c.speed += Math.max(-POLICE.cruiserAccel * dt, Math.min(POLICE.cruiserAccel * dt, top - c.speed));
-        c.pos.x += Math.sin(c.heading) * c.speed * dt;
-        c.pos.z += Math.cos(c.heading) * c.speed * dt;
-        // Keep cruisers on the streets: slide them back inside the city.
-        c.pos.x = Math.max(-168, Math.min(168, c.pos.x));
-        c.pos.z = Math.max(-168, Math.min(168, c.pos.z));
-        c.sync();
-        // Flash the light bar red/blue.
-        const bar = c.mesh.userData.lightBar;
-        if (bar) bar.material.emissive.setHex(Math.floor(G.time * 6 + (c.flashPhase || 0)) % 2 ? 0xff2222 : 0x2244ff);
-        // Ram: shove the player's car and hurt them.
-        if (dist < 4.2 && c.ramCooldown <= 0) {
-          c.ramCooldown = 1.2;
-          if (G.player.car) {
-            G.player.car.slideX += (dx / (dist || 1)) * -6;
-            G.player.car.slideZ += (dz / (dist || 1)) * -6;
-            G.player.car.speed *= 0.75;
-            G.damage(POLICE.ramDamage, 'RAMMED BY POLICE');
-          } else if (dist < POLICE.bustedRange) {
-            this.bustedTimer += dt;
-          }
-          if (playerSpeed > 8) {
-            c.health -= 1;
-            if (c.health <= 0) this.disableCruiser(c, G);
-          }
-        }
-      }
-      // Busted: a cruiser standing on Dara while he is on foot.
-      if (G.player.onFoot) {
-        const near = this.cruisers.some((c) => playerDistance(G, c.pos.x, c.pos.z) < POLICE.bustedRange);
-        if (near) {
-          this.bustedTimer += dt;
-          if (this.bustedTimer >= POLICE.bustedTime) G.gameOver('BUSTED');
-        } else {
-          this.bustedTimer = 0;
-        }
-      }
-      // Wanted decays once the heat is off.
-      if (this.wanted > 0) {
-        const near = this.cruisers.some((c) => playerDistance(G, c.pos.x, c.pos.z) < 45);
-        if (!near) {
-          this.decayTimer += dt;
-          if (this.decayTimer >= POLICE.decayDelay) {
-            this.wanted -= 1;
-            this.decayTimer = 0;
-          }
-        } else {
+      // The bust clock only runs while a cruiser is actually touching Dara;
+      // breaking contact resets it.
+      if (!touching) this.bustedTimer = 0;
+      // Quiet time with no cruiser near lets a star fade.
+      const nearest = Math.min(...this.cruisers.map((c) => Math.hypot(c.pos.x - playerPos.x, c.pos.z - playerPos.z)));
+      if (nearest > 60) {
+        this.decayTimer += dt;
+        if (this.decayTimer > POLICE.decayDelay) {
+          this.wanted--;
           this.decayTimer = 0;
         }
+      } else {
+        this.decayTimer = 0;
       }
-    },
-    disableCruiser(c, G) {
-      c.dead = true;
-      c.speed = 0;
-      G.effects.spawnSmoke(c.pos.x, c.pos.z, 14);
-      G.hud.toast('CRUISER DISABLED');
-      const i = this.cruisers.indexOf(c);
-      if (i >= 0) this.cruisers.splice(i, 1);
-      setTimeout(() => c.remove(), 4000);
+      // Roadblocks from 3 stars up: two parked cruisers across the road,
+      // every 12 seconds, at a random street ahead of the player.
+      if (this.wanted >= 3) {
+        this.roadblockTimer += dt;
+        if (this.roadblockTimer > 12) {
+          this.roadblockTimer = 0;
+          const street = city.streets[Math.floor(rng.next() * city.streets.length)];
+          const along = playerPos.z + 60;
+          const cars = [];
+          for (const [offset, angle] of [
+            [-3, 0],
+            [3, 0],
+          ]) {
+            const block = createCar(scene, street + offset, along, angle, 0x222630, true);
+            block.parked = true;
+            cars.push(block);
+          }
+          this.roadblocks.push({ cars });
+        }
+      }
+      // A cruiser that is far from the player and out of the chase is
+      // retired, so the fleet never grows without bound.
+      for (const cruiser of [...this.cruisers]) {
+        const d = Math.hypot(cruiser.pos.x - playerPos.x, cruiser.pos.z - playerPos.z);
+        if (d > 160) {
+          cruiser.remove();
+          this.cruisers = this.cruisers.filter((c) => c !== cruiser);
+        }
+      }
     },
   };
   return police;

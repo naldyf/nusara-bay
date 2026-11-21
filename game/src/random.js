@@ -1,34 +1,46 @@
-// Seeded randomness. mulberry32 is small, fast and deterministic: the same seed
-// always deals the same city, the same traffic and the same screenshot staging.
-export function createRandom(seed) {
-  let a = seed >>> 0;
+// Deterministic dice for Nusara Bay. One mulberry32 stream per game: the
+// same seed always builds the same streets, the same traffic and the same
+// staged screenshots, while a different seed shuffles everything.
+export function createRandom(seedValue) {
+  let state = seedValue >>> 0;
+
+  // The mulberry32 step, in its standard form: advance the state by the
+  // golden-ratio constant, then avalanche it through two xor-shifts and
+  // two multiplications. The stream is the same one the city was built
+  // with; the step is written as a single chain here.
+  function draw() {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), state | 1);
+    t = t ^ (t + Math.imul(t ^ (t >>> 7), t | 61));
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
   return {
+    // A float in [0, 1).
     next() {
-      a |= 0;
-      a = (a + 0x6d2b79f5) | 0;
-      let t = Math.imul(a ^ (a >>> 15), 1 | a);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      return draw();
     },
-    range(min, max) {
-      return min + this.next() * (max - min);
+    // A float in [low, high).
+    range(low, high) {
+      return low + draw() * (high - low);
     },
-    int(min, max) {
-      return Math.floor(this.range(min, max + 1));
+    // A whole number in [low, high], both ends included.
+    int(low, high) {
+      return Math.floor(low + draw() * (high - low + 1));
     },
+    // One element of the list, chosen uniformly.
     pick(list) {
-      return list[Math.floor(this.next() * list.length)];
+      return list[Math.floor(draw() * list.length)];
     },
-    // A value with a little deterministic wobble either side — rooftop
-    // clutter, lamp spacing and palm lean all use it so nothing lines up.
+    // `value` wobbled by up to `amount` either way: rooftop clutter, palm
+    // lean and lamp spacing all take their wobble from here.
     jitter(value, amount) {
-      return value + (this.next() - 0.5) * 2 * amount;
+      return value + (draw() - 0.5) * 2 * amount;
     },
-    // True with probability p — a coin flip off the same seeded stream, so a
-    // call site reads as intent ("a coin flip") instead of a bare comparison
-    // against next(), and it consumes exactly one stream value either way.
-    bool(p = 0.5) {
-      return this.next() < p;
+    // A coin flip off the same stream, so a call reads as intent
+    // ("a one-in-three chance") and still burns exactly one draw.
+    bool(chance = 0.5) {
+      return draw() < chance;
     },
   };
 }

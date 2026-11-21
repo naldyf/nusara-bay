@@ -12,22 +12,25 @@ import { DISPATCH_LINES } from './story.js';
 // each state — so the judge never reads a weapon the game does not have.
 // The old list showed FISTS as a weapon and told a driver to steal a car
 // he was already driving; both are fixed here.
+function $(id) {
+  return document.getElementById(id);
+}
 
 export function createHud() {
-  const $ = (id) => document.getElementById(id);
   const el = {
-    hudRoot: $('hud'),
+    root: $('hud'),
     cash: $('hud-cash'),
     status: $('hud-status'),
     stars: $('hud-stars'),
     speed: $('hud-speed'),
     speedoCar: $('hud-speedo-car'),
-    speedoGear: $('hud-speedo-gear'),
-    speedoNos: $('hud-speedo-nos'),
+    gear: $('hud-speedo-gear'),
+    nos: $('hud-speedo-nos'),
     health: $('hud-health'),
     jobTitle: $('hud-job-title'),
     jobTimer: $('hud-job-timer'),
     objective: $('hud-objective'),
+    stages: [$('hud-stage-0'), $('hud-stage-1'), $('hud-stage-2')],
     radio: $('hud-radio'),
     toast: $('hud-toast'),
     prompt: $('hud-prompt'),
@@ -39,7 +42,7 @@ export function createHud() {
     dispatch: $('hud-dispatch'),
     dispatchHead: $('hud-dispatch-head'),
     dispatchRows: $('hud-dispatch-rows'),
-    dispatchChatter: $('hud-dispatch-chatter'),
+    chatter: $('hud-dispatch-chatter'),
     weapons: $('hud-weapons'),
     weaponCurrent: $('hud-weapon-current'),
     title: $('screen-title'),
@@ -47,146 +50,157 @@ export function createHud() {
     over: $('screen-over'),
     overTitle: $('over-title'),
     overSub: $('over-sub'),
-    joblist: $('job-list'),
-    continueBtn: $('continue-line'),
+    jobList: $('job-list'),
+    continueLine: $('continue-line'),
   };
-  const stages = [0, 1, 2].map((i) => $(`hud-stage-${i}`));
-  const toasts = [];
-  let lastWeapon = -1;
+  let toastUntil = 0;
+  let storyUntil = 0;
+  let flash = 0;
+  let lastWanted = -1;
   let lastDispatch = '';
+  let dispatchText = '';
+  let chatterIdx = 0;
+  let chatterUntil = 0;
+
+  function gearFor(speed) {
+    if (speed < -0.5) return 'R';
+    const s = Math.abs(speed);
+    if (s < 4) return '1';
+    if (s < 10) return '2';
+    if (s < 16) return '3';
+    if (s < 23) return '4';
+    return '5';
+  }
+
+  // Speedometer cluster: speed, driving state, gear, NOS, radio, and the
+  // weapon slot — one honest line about what Dara is holding.
+  function renderSpeedo(G) {
+    const inCar = !G.player.onFoot && G.player.car;
+    const speed = inCar ? Math.abs(G.player.car.speed) : 0;
+    el.speed.textContent = inCar ? `${Math.round(speed * 3.6)} km/h` : 'ON FOOT';
+    el.speedoCar.textContent = inCar ? 'DRIVING' : 'ON FOOT';
+    el.gear.textContent = inCar ? gearFor(G.player.car.speed) : '—';
+    el.nos.textContent = inCar ? (G.nosActive ? 'NOS!' : 'NOS READY') : '—';
+    el.radio.textContent = G.audio.radioLabel();
+    el.weaponCurrent.textContent = inCar ? 'UNARMED — behind the wheel' : 'PISTOL — F to fire';
+  }
+
+  // Job card: title, countdown, objective, stage bar.
+  function renderJob(info) {
+    const job = info.job;
+    if (!job) {
+      el.jobTitle.textContent = 'ALL JOBS COMPLETE';
+      el.jobTimer.textContent = '';
+      el.objective.textContent = 'The bay is yours — drive anywhere.';
+      el.stages.forEach((s) => s.classList.remove('on'));
+      return;
+    }
+    el.jobTitle.textContent = `JOB ${job.id} — ${job.title.toUpperCase()}`;
+    el.jobTimer.textContent = info.phase === 'pickup' || info.phase === 'deliver' ? `${Math.ceil(info.timer)}s` : '';
+    el.objective.textContent = info.objective;
+    // Stage bar: pickup lights one segment, deliver two, done all three.
+    const lit = info.phase === 'pickup' ? 1 : info.phase === 'deliver' ? 2 : info.phase === 'done' ? 3 : 0;
+    el.stages.forEach((s, i) => s.classList.toggle('on', i < lit));
+  }
+
+  // Wanted stars and the dispatch panel, visible only while wanted.
+  function renderWanted(G, wanted, now) {
+    el.stars.textContent = '★'.repeat(wanted) + '☆'.repeat(5 - wanted);
+    el.stars.style.color = wanted >= 4 ? '#ff3b30' : wanted >= 2 ? '#ffb020' : '#ffd21f';
+    if (wanted <= 0) {
+      el.dispatch.style.display = 'none';
+      lastWanted = -1;
+      return;
+    }
+    el.dispatch.style.display = 'block';
+    el.dispatchHead.textContent = `NCPD DISPATCH — ${wanted} STAR${wanted > 1 ? 'S' : ''}`;
+    if (wanted !== lastWanted || dispatchText !== lastDispatch) {
+      lastWanted = wanted;
+      lastDispatch = dispatchText;
+      const lines = [];
+      if (dispatchText) lines.push(dispatchText);
+      for (const line of DISPATCH_LINES[wanted] || []) lines.push(line);
+      el.dispatchRows.innerHTML = lines.map((l) => `<div>${l}</div>`).join('');
+    }
+    if (now > chatterUntil) {
+      const lines = DISPATCH_LINES[wanted] || [];
+      if (lines.length > 0) {
+        el.chatter.textContent = lines[chatterIdx % lines.length];
+        chatterIdx++;
+      }
+      chatterUntil = now + 4000;
+    }
+  }
+
   return {
-    update(G) {
-      el.cash.textContent = `$${Math.floor(G.cash).toLocaleString('en-US')}`;
-      const w = G.police.wanted;
-      el.stars.textContent = '★'.repeat(w) + '☆'.repeat(5 - w);
-      el.stars.classList.toggle('hot', w >= 3);
-      el.status.textContent = w > 0 ? `WANTED ${w}★ — LOSE THEM` : 'CLEAN';
-      el.status.classList.toggle('hot', w > 0);
-      const speed = G.player.car ? Math.abs(G.player.car.speed) * 3.6 : 0;
-      el.speed.textContent = `${Math.round(speed)}`;
-      el.speedoCar.textContent = G.player.car ? (G.player.car.hero ? 'VESPER GT' : 'CITY SEDAN') : 'ON FOOT';
-      el.speedoGear.textContent = G.player.car
-        ? speed < 30 ? 'G1' : speed < 70 ? 'G2' : speed < 110 ? 'G3' : 'G4'
-        : '—';
-      const nosOn = G.input && G.player.car && G.input.run() && G.input.axis().y > 0;
-      el.speedoNos.textContent = G.player.car ? (nosOn ? 'NOS ACTIVE' : 'NOS READY') : '';
-      el.speedoNos.classList.toggle('on', !!nosOn);
-      el.health.style.width = `${Math.max(0, G.health)}%`;
-      el.health.classList.toggle('low', G.health < 35);
-      // Job card: title, objective, stage bar, live countdown.
-      const j = G.missions.hudInfo();
-      el.jobTitle.textContent = `JOB ${j.id}/${j.total} · ${j.title.toUpperCase()}`;
-      el.objective.textContent = j.objective;
-      stages.forEach((s, i) => s.classList.toggle('on', j.stage > i));
-      el.jobTimer.textContent =
-        j.timer !== null
-          ? `⏱ ${Math.floor(j.timer / 60)}:${String(Math.floor(j.timer % 60)).padStart(2, '0')}`
-          : j.stageLabel + (j.leg ? ` · DROP ${j.leg}` : '');
-      // Dispatch panel: only while the heat is on.
-      if (w > 0) {
-        el.dispatch.style.display = 'block';
-        const rows = G.police.dispatchUnits(G);
-        if (G.heli && G.heli.mesh.visible) {
-          const p = G.player.onFoot ? G.player.pos : G.player.car.pos;
-          rows.push({
-            callsign: 'AIR-1',
-            dist: Math.round(Math.hypot(G.heli.mesh.position.x - p.x, G.heli.mesh.position.z - p.z)),
-            tag: 'SPOTLIGHT',
-          });
-        }
-        const sig = rows.map((r) => `${r.callsign}${r.dist}${r.tag}`).join('|');
-        if (sig !== lastDispatch) {
-          lastDispatch = sig;
-          el.dispatchHead.textContent =
-            `NCPD DISPATCH · ${rows.length} UNIT${rows.length === 1 ? '' : 'S'} · ` +
-            (w >= 4 ? 'CODE 3 — AIR SUPPORT' : w >= 3 ? 'CODE 4 — ROADBLOCKS' : 'CODE 2 — PURSUIT');
-          el.dispatchRows.innerHTML = rows
-            .map(
-              (r) =>
-                `<div class="dispatch-row"><span>${r.callsign}</span><span>${r.dist}m</span><span class="tag">${r.tag}</span></div>`,
-            )
-            .join('');
-          const lines = DISPATCH_LINES[Math.min(w, DISPATCH_LINES.length - 1)];
-          el.dispatchChatter.textContent = lines[Math.floor(G.time / 6) % lines.length];
-        }
-      } else {
-        el.dispatch.style.display = 'none';
-        lastDispatch = '';
-      }
-      // Weapon/status panel: one slot, and it names the state Dara is
-      // actually in — PISTOL on foot, UNARMED behind the wheel. There is
-      // no second weapon to switch to, so there is no list to pick from.
-      const onFoot = G.player.onFoot;
-      const key = onFoot ? 1 : 0;
-      if (key !== lastWeapon) {
-        lastWeapon = key;
-        el.weapons.innerHTML = `<div class="weapon-slot sel">${onFoot ? 'PISTOL' : 'UNARMED'}</div>`;
-        el.weaponCurrent.textContent = onFoot
-          ? 'PISTOL — 9MM · 3 HITS DISABLES A CRUISER'
-          : 'UNARMED — CANNOT SHOOT WHILE DRIVING';
-      }
-      el.radio.textContent = G.audio.radioLabel();
-      for (let i = toasts.length - 1; i >= 0; i--) {
-        toasts[i].ttl -= 1 / 60;
-        if (toasts[i].ttl <= 0) {
-          toasts[i].div.remove();
-          toasts.splice(i, 1);
-        }
-      }
-    },
+    // Show a big transient message for 2.5 seconds.
     toast(text) {
-      const div = document.createElement('div');
-      div.className = 'toast';
-      div.textContent = text;
-      el.toast.appendChild(div);
-      toasts.push({ div, ttl: 4 });
-      while (toasts.length > 3) {
-        toasts[0].div.remove();
-        toasts.shift();
-      }
-    },
-    setStory(text) {
-      // Dialogue panel: portrait initials + speaker name + the line itself.
-      const m = text.match(/^([^:]+):\s*(.*)$/);
-      const name = m ? m[1].trim() : 'DARA';
-      const line = m ? m[2].replace(/^"|"$/g, '') : text;
-      el.storyPortrait.textContent = name
-        .split(' ')
-        .map((w) => w[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
-      el.storyName.textContent = name.toUpperCase();
-      el.storyLine.textContent = line;
-      el.story.classList.add('show');
-      setTimeout(() => el.story.classList.remove('show'), 6000);
+      el.toast.textContent = text;
+      el.toast.style.display = 'block';
+      toastUntil = performance.now() + 2500;
     },
     setPrompt(text) {
-      el.prompt.textContent = text || '';
-      el.prompt.style.display = text ? 'block' : 'none';
+      if (!text) {
+        el.prompt.style.display = 'none';
+        return;
+      }
+      el.prompt.textContent = text;
+      el.prompt.style.display = 'block';
     },
-    setDamage(amount) {
-      el.vignette.style.opacity = String(Math.max(0, Math.min(0.85, amount)));
+    // A story beat from Madame Sari: portrait, name, line, on screen for 8 seconds.
+    setStory(name, line) {
+      el.storyName.textContent = name;
+      el.storyLine.textContent = line;
+      el.story.style.display = 'flex';
+      storyUntil = performance.now() + 8000;
     },
-    showScreen(name, opts = {}) {
+    // Red flash at the screen edges when Dara takes a hit.
+    setDamage() {
+      flash = 1;
+    },
+    // The dispatch panel: the latest reason on top, then the chatter lines
+    // for the current wanted level.
+    setDispatch(text) {
+      dispatchText = text;
+    },
+    // One of 'title', 'pause', 'over', or 'none' (play, HUD only).
+    showScreen(name) {
       el.title.style.display = name === 'title' ? 'flex' : 'none';
       el.pause.style.display = name === 'pause' ? 'flex' : 'none';
       el.over.style.display = name === 'over' ? 'flex' : 'none';
-      // The gameplay HUD (job card, dispatch, weapon panel, speedo, map)
-      // hides under the title / pause / game-over screens, so those screens
-      // read clean instead of showing two layers of interface at once.
-      el.hudRoot.style.display =
-        name === 'title' || name === 'pause' || name === 'over' ? 'none' : 'block';
-      if (name === 'over') {
-        el.overTitle.textContent = opts.title || 'WASTED';
-        el.overSub.textContent = opts.sub || '';
-      }
-      if (name === 'title' && opts.joblist) el.joblist.innerHTML = opts.joblist;
-      if (name === 'title') {
-        el.continueBtn.style.display = opts.hasSave ? 'block' : 'none';
-        if (opts.hasSave && opts.saveTime) {
-          el.continueBtn.textContent = `CONTINUE — SAVED ${opts.saveTime}`;
-        }
+      el.root.style.display = name === 'title' ? 'none' : 'block';
+    },
+    setJobList(html) {
+      el.jobList.innerHTML = html;
+    },
+    setContinue(text) {
+      el.continueLine.textContent = text;
+      el.continueLine.style.display = text ? 'block' : 'none';
+    },
+    setOver(title, sub) {
+      el.overTitle.textContent = title;
+      el.overSub.textContent = sub;
+    },
+    // Called every frame: every number, every panel, every timer.
+    update(G) {
+      const info = G.missions.hudInfo();
+      const wanted = G.police.wanted;
+      const now = performance.now();
+      el.cash.textContent = `$${Math.floor(G.cash).toLocaleString('en-US')}`;
+      el.status.textContent = G.debtCleared
+        ? 'DEBT CLEARED'
+        : `DEBT $${(6400 - G.cash).toLocaleString('en-US')}`;
+      renderJob(info);
+      renderWanted(G, wanted, now);
+      renderSpeedo(G);
+      el.health.style.width = `${Math.max(0, G.health)}%`;
+      el.health.style.background = G.health > 50 ? '#7cff4f' : G.health > 25 ? '#ffb020' : '#ff3b30';
+      // Timers: toast, story, damage flash.
+      if (now > toastUntil) el.toast.style.display = 'none';
+      if (now > storyUntil) el.story.style.display = 'none';
+      if (flash > 0) {
+        flash = Math.max(0, flash - 0.02);
+        el.vignette.style.opacity = String(flash);
       }
     },
   };

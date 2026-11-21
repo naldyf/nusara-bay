@@ -6,86 +6,116 @@
 <link rel="icon" href="data:,">
 <title>Nusara Bay — a getaway story</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #1d1433; font-family: system-ui, -apple-system, sans-serif; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1d1433; }
+  body { font-family: system-ui, -apple-system, sans-serif; }
   #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; }
-  .panel { position: absolute; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
-  .hud-panel { background: rgba(10,10,18,.82); border: 1px solid rgba(245,197,66,.45); border-radius: 6px; padding: 8px 10px; }
+  .pane { position: absolute; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+  .glass {
+    background: rgba(10,10,18,.82);
+    border: 1px solid rgba(245,197,66,.45);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  /* Top-centre: the wanted level, big enough to read at a glance. */
+  #hud-wanted { top: 12px; left: 50%; transform: translateX(-50%); text-align: center; }
+  #hud-wanted-label { font-size: 11px; font-weight: 800; letter-spacing: 4px; color: #ff8a7a; }
+  #hud-stars { font-size: 28px; letter-spacing: 4px; color: #ffd21f; line-height: 1.1; }
   /* Top-left: the job card — what Dara owes, where to go, how long is left. */
   #hud-jobcard { top: 14px; left: 16px; width: 340px; }
   #hud-job-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   #hud-job-title { font-size: 15px; font-weight: 800; letter-spacing: .5px; color: #ffd21f; }
   #hud-job-timer { font-size: 19px; font-weight: 800; color: #ffd21f; white-space: nowrap; }
   #hud-objective { margin-top: 6px; font-size: 13px; font-weight: 600; line-height: 1.35; }
-  .stage-bar { display: flex; gap: 4px; margin-top: 8px; }
-  .stage-seg { flex: 1; height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; }
-  .stage-seg.on { background: #ffd21f; }
-  .stage-labels { display: flex; gap: 4px; margin-top: 3px; font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #8a84a0; }
-  .stage-labels span { flex: 1; text-align: center; }
-  /* Top-centre: the wanted level, big enough to read at a glance. */
-  #hud-wanted { top: 12px; left: 50%; transform: translateX(-50%); text-align: center; }
-  #hud-wanted-label { font-size: 11px; font-weight: 800; letter-spacing: 4px; color: #ff8a7a; }
-  #hud-stars { font-size: 28px; letter-spacing: 4px; color: #ffd21f; line-height: 1.1; }
-  #hud-stars.hot { color: #ff3344; animation: pulse .5s infinite alternate; }
-  @keyframes pulse { from { opacity: 1; } to { opacity: .45; } }
+  .stages { display: flex; gap: 4px; margin-top: 8px; }
+  .seg { flex: 1; height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; }
+  .seg.on { background: #ffd21f; }
+  .seg-labels { display: flex; gap: 4px; margin-top: 3px; font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #8a84a0; }
+  .seg-labels span { flex: 1; text-align: center; }
   /* Top-right: cash, status, health. */
   #hud-topright { top: 14px; right: 16px; text-align: right; }
   #hud-cash { font-size: 30px; font-weight: 800; letter-spacing: 1px; color: #ffd21f; }
   #hud-status { font-size: 12px; font-weight: 800; letter-spacing: 2px; color: #7cff4f; margin-top: 2px; }
-  #hud-status.hot { color: #ff3344; animation: pulse .5s infinite alternate; }
-  #hud-healthbar { width: 170px; height: 9px; background: rgba(0,0,0,.55); border-radius: 5px; margin-top: 8px; margin-left: auto; overflow: hidden; border: 1px solid rgba(255,255,255,.25); }
+  #hud-healthbar {
+    width: 170px; height: 9px; background: rgba(0,0,0,.55); border-radius: 5px;
+    margin-top: 8px; margin-left: auto; overflow: hidden; border: 1px solid rgba(255,255,255,.25);
+  }
   #hud-health { height: 100%; width: 100%; background: #4fdc6a; border-radius: 5px; }
-  #hud-health.low { background: #ff3344; }
-  /* Left edge: police dispatch — callsign, live distance, what they're doing. */
+  /* Left edge: police dispatch — the latest call, then the radio chatter. */
   #hud-dispatch { top: 158px; left: 16px; width: 268px; display: none; }
   #hud-dispatch-head { font-size: 12px; font-weight: 800; letter-spacing: 1px; color: #ff8a7a; }
-  .dispatch-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 700; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
-  .dispatch-row .tag { color: #ff6b7a; }
+  #hud-dispatch-rows { font-size: 12px; font-weight: 700; line-height: 1.5; margin-top: 4px; }
+  #hud-dispatch-rows div { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
   #hud-dispatch-chatter { font-style: italic; font-size: 12px; color: #cfc8e8; margin-top: 6px; line-height: 1.35; }
-  /* Right edge: weapon wheel. */
+  /* Right edge: what Dara is holding. */
   #hud-weapons-wrap { top: 158px; right: 16px; width: 180px; text-align: right; }
-  .weapon-slot { padding: 4px 8px; font-size: 12px; font-weight: 700; color: #cfc8e8; border: 1px solid transparent; border-radius: 4px; }
-  .weapon-slot.sel { color: #ffd21f; border-color: rgba(255,210,31,.6); background: rgba(255,210,31,.08); }
-  .weapon-slot.locked { opacity: .45; }
   #hud-weapon-current { margin-top: 6px; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #8a84a0; }
-  /* Bottom-left: the live minimap, circular, with the search zone drawn on it. */
-  #hud-minimap-wrap { position: absolute; left: 16px; bottom: 16px; text-align: center; }
-  #minimap { width: 168px; height: 168px; border-radius: 50%; background: rgba(8,6,20,.72); border: 2px solid rgba(245,197,66,.5); display: block; }
-  #hud-minimap-label { margin-top: 4px; font-size: 10px; font-weight: 800; letter-spacing: 2px; color: #ffd21f; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
   /* Bottom-right: speedometer cluster + radio. */
   #hud-speedo { right: 16px; bottom: 16px; text-align: right; }
   #hud-speedo-car { font-size: 13px; font-weight: 800; letter-spacing: 2px; color: #ffd21f; }
   #hud-speed { font-size: 46px; font-weight: 800; line-height: 1; }
-  #hud-speed small { font-size: 14px; font-weight: 700; color: #cfc8e8; }
   #hud-speedo-gear { font-size: 15px; font-weight: 800; color: #7cffef; }
   #hud-speedo-nos { font-size: 12px; font-weight: 800; letter-spacing: 2px; color: #8a84a0; }
-  #hud-speedo-nos.on { color: #ff6b2e; }
   #hud-radio { font-size: 13px; color: #7cffef; margin-top: 4px; }
-  #hud-toast { position: absolute; top: 150px; left: 50%; transform: translateX(-50%); text-align: center; }
-  .toast { background: rgba(10,6,26,.78); border: 1px solid rgba(255,210,31,.6); color: #ffe9a8; padding: 8px 16px; border-radius: 6px; font-weight: 700; margin-bottom: 8px; font-size: 15px; }
-  #hud-prompt { position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%); background: rgba(10,6,26,.8); border: 1px solid #7cffef; color: #7cffef; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 16px; display: none; }
-  /* Dialogue: portrait, speaker name, the line. */
-  #hud-story { position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%); max-width: 640px; display: flex; align-items: center; gap: 12px; text-align: left; background: rgba(10,6,26,.78); border: 1px solid rgba(255,210,31,.45); padding: 10px 16px; border-radius: 8px; opacity: 0; transition: opacity .4s; }
-  #hud-story.show { opacity: 1; }
-  #hud-story-portrait { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; background: #2a1a3a; border: 2px solid #ffd21f; color: #ffd21f; font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  /* Bottom-left: the live minimap, circular. */
+  #hud-minimap-wrap { position: absolute; left: 16px; bottom: 16px; text-align: center; }
+  #minimap {
+    width: 168px; height: 168px; border-radius: 50%; display: block;
+    background: rgba(8,6,20,.72); border: 2px solid rgba(245,197,66,.5);
+  }
+  #hud-minimap-label { margin-top: 4px; font-size: 10px; font-weight: 800; letter-spacing: 2px; color: #ffd21f; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+  /* Transient messages: toast up top, prompt down low, story dialogue. */
+  #hud-toast {
+    position: absolute; top: 150px; left: 50%; transform: translateX(-50%); text-align: center;
+    background: rgba(10,6,26,.78); border: 1px solid rgba(255,210,31,.6); color: #ffe9a8;
+    padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 15px; display: none;
+  }
+  #hud-prompt {
+    position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%);
+    background: rgba(10,6,26,.8); border: 1px solid #7cffef; color: #7cffef;
+    padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 16px; display: none;
+  }
+  #hud-story {
+    position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%); max-width: 640px;
+    display: none; align-items: center; gap: 12px; text-align: left;
+    background: rgba(10,6,26,.78); border: 1px solid rgba(255,210,31,.45);
+    padding: 10px 16px; border-radius: 8px;
+  }
+  #hud-story-portrait {
+    width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%;
+    background: #2a1a3a; border: 2px solid #ffd21f; color: #ffd21f;
+    font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center;
+  }
   #hud-story-name { font-size: 11px; font-weight: 800; letter-spacing: 2px; color: #ffd21f; }
   #hud-story-line { font-style: italic; font-size: 15px; line-height: 1.4; margin-top: 2px; }
   /* Vignettes: a permanent warm golden-hour one, plus the red damage flash. */
   #hud-golden-vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(120,40,0,.20) 100%); }
   #hud-vignette { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(255,0,30,.55) 100%); }
-  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; color: #fff; background: linear-gradient(180deg, rgba(20,8,40,.25) 0%, rgba(20,8,40,.78) 100%); }
-  .screen h1 { font-size: 64px; margin: 0; letter-spacing: 6px; color: #ffd21f; text-shadow: 0 0 24px rgba(255,180,60,.7), 0 4px 0 rgba(0,0,0,.4); }
-  .screen h2 { font-size: 20px; margin: 6px 0 18px; font-weight: 400; color: #d9c8ff; letter-spacing: 2px; }
-  .screen .sysline { font-size: 15px; font-weight: 700; color: #7cffef; letter-spacing: 1px; margin-bottom: 16px; }
-  #job-list { font-size: 15px; line-height: 1.7; background: rgba(8,4,20,.66); padding: 12px 26px; border-radius: 10px; border: 1px solid rgba(255,210,31,.35); text-align: left; }
+  /* Full-screen overlays: title, pause, game over. */
+  .overlay {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    flex-direction: column; text-align: center; color: #fff;
+    background: linear-gradient(180deg, rgba(20,8,40,.25) 0%, rgba(20,8,40,.78) 100%);
+  }
+  .overlay h1 {
+    font-size: 64px; margin: 0; letter-spacing: 6px; color: #ffd21f;
+    text-shadow: 0 0 24px rgba(255,180,60,.7), 0 4px 0 rgba(0,0,0,.4);
+  }
+  .overlay h2 { font-size: 20px; margin: 6px 0 18px; font-weight: 400; color: #d9c8ff; letter-spacing: 2px; }
+  .overlay .tagline { font-size: 15px; font-weight: 700; color: #7cffef; letter-spacing: 1px; margin-bottom: 16px; }
+  #job-list {
+    font-size: 15px; line-height: 1.7; background: rgba(8,4,20,.66);
+    padding: 12px 26px; border-radius: 10px; border: 1px solid rgba(255,210,31,.35); text-align: left;
+  }
+  #job-list .job-row { display: flex; justify-content: space-between; gap: 24px; }
   #job-list .done { color: #7cff4f; }
   #job-list .locked { color: #8a84a0; }
-  #job-list .next { color: #ffd21f; font-weight: 700; }
-  .screen .controls { margin-top: 18px; font-size: 14px; color: #cfc8e8; line-height: 1.8; }
-  .screen .press { margin-top: 22px; font-size: 18px; font-weight: 800; letter-spacing: 2px; animation: pulse 1s infinite alternate; }
+  #job-list .current { color: #ffd21f; font-weight: 700; }
+  .overlay .keys { margin-top: 18px; font-size: 14px; color: #cfc8e8; line-height: 1.8; list-style: none; padding: 0; }
+  .overlay .cta { margin-top: 22px; font-size: 18px; font-weight: 800; letter-spacing: 2px; animation: pulse 1s infinite alternate; }
+  @keyframes pulse { from { opacity: 1; } to { opacity: .45; } }
   #continue-line { margin-top: 10px; font-size: 15px; color: #7cff4f; font-weight: 700; display: none; }
   #screen-over h1 { color: #ff3344; }
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.min.js" } }
@@ -94,72 +124,80 @@
 <body>
 <canvas id="game" aria-label="Nusara Bay: drive, steal cars, outrun the police and finish Dara's eight jobs"></canvas>
 <div id="hud">
-  <div class="panel hud-panel" id="hud-jobcard">
-    <div id="hud-job-head"><span id="hud-job-title">JOB 1/8 · FIRST FARE</span><span id="hud-job-timer">FREE ROAM</span></div>
-    <div id="hud-objective">Free roam — steal a car, or start Job 1 at the marker.</div>
-    <div class="stage-bar"><span class="stage-seg" id="hud-stage-0"></span><span class="stage-seg" id="hud-stage-1"></span><span class="stage-seg" id="hud-stage-2"></span></div>
-    <div class="stage-labels"><span>PICKUP</span><span>DELIVER</span><span>DONE</span></div>
-  </div>
-  <div class="panel" id="hud-wanted">
+  <div class="pane" id="hud-wanted" role="status" aria-label="Wanted level">
     <div id="hud-wanted-label">WANTED</div>
     <div id="hud-stars">☆☆☆☆☆</div>
   </div>
-  <div class="panel" id="hud-topright">
+  <div class="pane glass" id="hud-jobcard">
+    <div id="hud-job-head"><span id="hud-job-title">JOB 1/8 · FIRST FARE</span><span id="hud-job-timer">FREE ROAM</span></div>
+    <div id="hud-objective">Free roam — steal a car, or start Job 1 at the marker.</div>
+    <div class="stages"><span class="seg" id="hud-stage-0"></span><span class="seg" id="hud-stage-1"></span><span class="seg" id="hud-stage-2"></span></div>
+    <div class="seg-labels"><span>PICKUP</span><span>DELIVER</span><span>DONE</span></div>
+  </div>
+  <div class="pane" id="hud-topright">
     <div id="hud-cash">$250</div>
     <div id="hud-status">CLEAN</div>
     <div id="hud-healthbar"><div id="hud-health"></div></div>
   </div>
-  <div class="panel hud-panel" id="hud-dispatch">
+  <div class="pane glass" id="hud-dispatch">
     <div id="hud-dispatch-head">NCPD DISPATCH</div>
     <div id="hud-dispatch-rows"></div>
     <div id="hud-dispatch-chatter"></div>
   </div>
-  <div class="panel hud-panel" id="hud-weapons-wrap">
+  <div class="pane glass" id="hud-weapons-wrap">
     <div id="hud-weapons"></div>
-    <div id="hud-weapon-current">PISTOL — 9MM · 3 HITS DISABLES A CRUISER</div>
+    <div id="hud-weapon-current">PISTOL — F to fire on foot</div>
+  </div>
+  <div class="pane" id="hud-speedo">
+    <div id="hud-speedo-car">ON FOOT</div>
+    <div id="hud-speed">0 km/h</div>
+    <div id="hud-speedo-gear">—</div>
+    <div id="hud-speedo-nos"></div>
+    <div id="hud-radio">RADIO OFF — press M</div>
   </div>
   <div id="hud-minimap-wrap">
     <canvas id="minimap" width="168" height="168"></canvas>
     <div id="hud-minimap-label">NUSARA BAY — LIVE MAP</div>
   </div>
-  <div class="panel" id="hud-speedo">
-    <div id="hud-speedo-car">ON FOOT</div>
-    <div><span id="hud-speed">0</span> <small>km/h</small> · <span id="hud-speedo-gear">—</span></div>
-    <div id="hud-speedo-nos"></div>
-    <div id="hud-radio">RADIO OFF — press M</div>
-  </div>
   <div id="hud-toast"></div>
   <div id="hud-prompt"></div>
   <div id="hud-story">
     <div id="hud-story-portrait">MS</div>
-    <div><div id="hud-story-name">MADAME SARI</div><div id="hud-story-line"></div></div>
+    <div class="story-text">
+      <div id="hud-story-name">MADAME SARI</div>
+      <div id="hud-story-line"></div>
+    </div>
   </div>
 </div>
 <div id="hud-golden-vignette"></div>
 <div id="hud-vignette"></div>
-<div class="screen" id="screen-title">
+<div class="overlay" id="screen-title">
   <h1>NUSARA BAY</h1>
   <h2>A GETAWAY STORY — DARA OWES THE HARBOR BOSS 8 JOBS</h2>
-  <div class="sysline">8 JOBS • 5-STAR POLICE • CAR STEALING • 2 RADIO STATIONS • SAVES • LIVE MINIMAP • GOLDEN HOUR</div>
+  <div class="tagline">8 JOBS • 5-STAR POLICE • CAR STEALING • 2 RADIO STATIONS • SAVES • LIVE MINIMAP • GOLDEN HOUR</div>
   <div id="job-list"></div>
   <div id="continue-line"></div>
-  <div class="controls">
-    WASD / ARROWS — drive &amp; walk &nbsp;·&nbsp; E — enter / steal car &nbsp;·&nbsp; SPACE — handbrake<br>
-    SHIFT — NOS &nbsp;·&nbsp; F / CLICK — shoot on foot &nbsp;·&nbsp; M — radio &nbsp;·&nbsp; ESC — pause
-  </div>
-  <div class="press">PRESS ENTER TO START</div>
+  <ul class="keys">
+    <li>WASD / ARROWS — drive &amp; walk</li>
+    <li>E — enter / steal car</li>
+    <li>SPACE — handbrake</li>
+    <li>SHIFT — NOS</li>
+    <li>F / CLICK — shoot on foot</li>
+    <li>M — radio</li>
+    <li>ESC — pause</li>
+  </ul>
+  <div class="cta">PRESS ENTER TO START</div>
 </div>
-<div class="screen" id="screen-pause">
+<div class="overlay" id="screen-pause">
   <h1>PAUSED</h1>
   <h2>THE CITY WAITS. THE COPS DON'T.</h2>
-  <div class="press">PRESS ESC TO KEEP DRIVING</div>
+  <div class="cta">PRESS ESC TO KEEP DRIVING</div>
 </div>
-<div class="screen" id="screen-over">
+<div class="overlay" id="screen-over">
   <h1 id="over-title">WASTED</h1>
   <h2 id="over-sub"></h2>
-  <div class="press">PRESS ENTER FOR THE TITLE SCREEN</div>
+  <div class="cta">PRESS ENTER FOR THE TITLE SCREEN</div>
 </div>
-<p id="status" role="status" aria-live="polite"></p>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
