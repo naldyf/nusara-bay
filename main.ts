@@ -19,7 +19,7 @@
 // scorer would refuse the entry, so a clean run here means the entry is
 // hand-in shaped.
 
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -40,10 +40,15 @@ const LIMITS = {
 };
 
 // Start from an empty output directory, so a stale file from an older
-// build can never ride along with the entry.
+// build can never ride along with the entry. Only the CONTENTS are
+// cleared: the grader runs as user 65534 and cannot remove a directory
+// it does not own, so the directory itself must stay in place — removing
+// it (rmSync on the dir) fails with EPERM and kills the run.
 function freshOutput(dir) {
-  rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
+  for (const entry of readdirSync(dir)) {
+    rmSync(join(dir, entry), { recursive: true, force: true });
+  }
 }
 
 // Carry one directory tree — game/ or screenshots/ — into the output.
